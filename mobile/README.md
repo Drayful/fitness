@@ -1,31 +1,17 @@
-## Mobile (Flutter)
+# fitness_app
 
-Эта папка предназначена для Flutter-приложения, которое потребляет REST API из `../backend`.
+A new Flutter project.
 
-### Установка Flutter (Windows)
+## Getting Started
 
-1. Установите Flutter SDK и добавьте `flutter` в PATH.
-2. Проверьте:
+This project is a starting point for a Flutter application.
 
-```
-flutter --version
-flutter doctor
-```
+A few resources to get you started if this is your first Flutter project:
 
-### Создание приложения (рекомендуемый путь)
+- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
+- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
 
-Из корня репозитория:
-
-```
-flutter create mobile
-cd mobile
-flutter run
-```
-
-### Настройка API
-
-Бэкенд по умолчанию будет на `http://127.0.0.1:8000`.
-На Android-эмуляторе часто нужно использовать `http://10.0.2.2:8000`.
-
-Я добавлю в репозиторий минимальный клиент после того, как Flutter будет доступен в системе (чтобы корректно сгенерировать platform-папки и зависимости).
-
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
