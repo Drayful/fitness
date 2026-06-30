@@ -1,5 +1,8 @@
 import 'dart:typed_data';
 
+import 'sleep_model.dart';
+import 'workout_model.dart';
+
 /// JCV8 bracelet BLE protocol helpers (Youhong V1.0).
 class V8Protocol {
   V8Protocol._();
@@ -17,6 +20,17 @@ class V8Protocol {
   static const cmdTotalSteps = 0x51;
 
   static const measureHeartRate = 0x02;
+  static const measureSpO2 = 0x03;
+
+  static const cmdSleep = 0x53;
+
+  static const cmdExercise = 0x19;
+  static const cmdExerciseLive = 0x18;
+
+  static const exerciseStart = 1;
+  static const exercisePause = 2;
+  static const exerciseResume = 3;
+  static const exerciseEnd = 4;
 
   static Uint8List buildPacket(int command, [List<int> payload = const []]) {
     final packet = Uint8List(16);
@@ -94,6 +108,84 @@ class V8Protocol {
       return u.substring(4, 8);
     }
     return u;
+  }
+
+  /// Parses a single 0x53 sleep record packet.
+  /// Format: 0x53 ID1 ID2 YY MM DD HH mm SS LEN SD1..SDn
+  /// Each SDn byte: 01=deep, 02=light, 03=rem, else=awake
+  static SleepRecord? parseSleepRecord(Uint8List data) {
+    if (data.length < 11) return null;
+    if ((data[0] & 0x7F) != cmdSleep) return null;
+    if (data[1] == 0xFF) return null; // end-of-stream marker
+
+    final yy = data[3];
+    final mo = data[4];
+    final dd = data[5];
+    final hh = data[6];
+    final mn = data[7];
+    final ss = data[8];
+    final len = data[9];
+
+    if (len == 0 || mo < 1 || mo > 12 || dd < 1 || dd > 31) return null;
+
+    final stages = <SleepStage>[];
+    for (var i = 0; i < len && (10 + i) < data.length; i++) {
+      final v = data[10 + i];
+      stages.add(switch (v) {
+        1 => SleepStage.deep,
+        2 => SleepStage.light,
+        3 => SleepStage.rem,
+        _ => SleepStage.awake,
+      });
+    }
+
+    if (stages.isEmpty) return null;
+    return SleepRecord(
+      start: DateTime(2000 + yy, mo, dd, hh, mn, ss),
+      stages: stages,
+    );
+  }
+
+  /// Parses 0x18 real-time exercise packet (21 bytes, sent ~1/sec by band).
+  /// Returns null for end/warning packets — check [isExerciseEnded] and
+  /// [exerciseInactiveWarning] separately.
+  static WorkoutLive? parseExerciseLive(Uint8List data) {
+    if (data.length < 18) return null;
+    if (data[0] != cmdExerciseLive) return null;
+    if (data[1] == 0xFF || data[1] == 0xAA) return null;
+
+    final hr = data[1];
+    final steps = data[2] | (data[3] << 8) | (data[4] << 16) | (data[5] << 24);
+
+    final bd = ByteData(4)
+      ..setUint8(0, data[6])
+      ..setUint8(1, data[7])
+      ..setUint8(2, data[8])
+      ..setUint8(3, data[9]);
+    final cal = bd.getFloat32(0, Endian.little);
+
+    final dur = data[10] | (data[11] << 8) | (data[12] << 16) | (data[13] << 24);
+    final distRaw = data[14] | (data[15] << 8) | (data[16] << 16) | (data[17] << 24);
+
+    return WorkoutLive(
+      heartRate: hr,
+      steps: steps,
+      calories: (cal.isNaN || cal.isInfinite) ? 0.0 : cal,
+      durationSeconds: dur,
+      distanceM: distRaw * 10.0, // unit: 0.01 km → meters
+    );
+  }
+
+  /// True when band signals workout ended (HR byte == 0xFF).
+  static bool isExerciseEnded(Uint8List data) =>
+      data.length >= 2 && data[0] == cmdExerciseLive && data[1] == 0xFF;
+
+  /// Returns inactive warning level (1 = 10 min, 2 = 20 min) or null.
+  static int? exerciseInactiveWarning(Uint8List data) {
+    if (data.length >= 3 && data[0] == cmdExerciseLive && data[1] == 0xAA) {
+      return data[2];
+    }
+    return null;
   }
 
   static String hex(Uint8List data) {
