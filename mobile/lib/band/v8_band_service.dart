@@ -5,7 +5,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'sleep_model.dart';
 import 'v8_protocol.dart';
+import 'workout_model.dart';
+
+class _StreamCollector {
+  final packets = <Uint8List>[];
+  final completer = Completer<List<Uint8List>>();
+}
 
 enum BandConnectionState { idle, scanning, connecting, connected, error }
 
@@ -54,11 +61,24 @@ class V8BandService extends ChangeNotifier {
   StreamSubscription<BluetoothConnectionState>? _connectionSub;
   StreamSubscription<List<ScanResult>>? _scanSub;
   final Map<int, Completer<Uint8List>> _pending = {};
+  final Map<int, _StreamCollector> _streamCollectors = {};
   bool _ready = false;
   bool jcv8OnlyFilter = false;
   bool isLiveHrActive = false;
   LiveVitals? liveVitals;
   String? liveHrStatus;
+  SleepSummary? sleepSummary;
+  bool isSleepSyncing = false;
+
+  // ── Workout / exercise state ──
+  ExerciseType? activeExerciseType;
+  DateTime? workoutStartTime;
+  bool isWorkoutActive = false;
+  bool isWorkoutPaused = false;
+  WorkoutLive? workoutLive;
+  bool workoutEndedByDevice = false;
+  int? workoutInactiveWarning;
+  final List<WorkoutSummary> workoutHistory = [];
 
   bool get isConnected => state == BandConnectionState.connected;
 
@@ -227,6 +247,20 @@ class V8BandService extends ChangeNotifier {
       state = BandConnectionState.connected;
       statusMessage = 'Connected and synced';
       notifyListeners();
+
+      // Auto-start live metrics and sleep sync after a short stabilization delay.
+      Future<void>.delayed(const Duration(milliseconds: 400)).then((_) async {
+        if (!_ready) return;
+        try {
+          await startLiveHeartRate();
+        } catch (_) {}
+      });
+      Future<void>.delayed(const Duration(seconds: 2)).then((_) async {
+        if (!_ready) return;
+        try {
+          await syncSleepData();
+        } catch (_) {}
+      });
     } catch (e) {
       state = BandConnectionState.error;
       statusMessage = 'Connection failed: $e';
@@ -288,6 +322,14 @@ class V8BandService extends ChangeNotifier {
         durationSec: 60,
       ),
     );
+    await sendCommand(
+      V8Protocol.cmdMeasure,
+      V8Protocol.measurePayload(
+        mode: V8Protocol.measureSpO2,
+        start: true,
+        durationSec: 60,
+      ),
+    );
     await sendCommand(V8Protocol.cmdRealtime, const [0x01]);
 
     isLiveHrActive = true;
@@ -320,6 +362,48 @@ class V8BandService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sends a command that returns a variable number of BLE notifications,
+  /// terminated by a packet where byte[1] == 0xFF.
+  Future<List<Uint8List>> sendStreamCommand(
+    int command, [
+    List<int> payload = const [],
+  ]) async {
+    if (!_ready || _tx == null) throw StateError('Bracelet is not ready');
+    final cmd = command & 0x7F;
+    final collector = _StreamCollector();
+    _streamCollectors[cmd] = collector;
+    final packet = V8Protocol.buildPacket(command, payload);
+    await _tx!.write(packet, withoutResponse: false);
+    return collector.completer.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {
+        _streamCollectors.remove(cmd);
+        throw TimeoutException(
+          'Timeout reading stream 0x${command.toRadixString(16)}',
+        );
+      },
+    );
+  }
+
+  Future<void> syncSleepData() async {
+    if (!_ready) return;
+    isSleepSyncing = true;
+    notifyListeners();
+    try {
+      final packets = await sendStreamCommand(V8Protocol.cmdSleep, [0x00]);
+      final records = packets
+          .map(V8Protocol.parseSleepRecord)
+          .whereType<SleepRecord>()
+          .toList();
+      sleepSummary = SleepSummary.fromRecords(records);
+    } catch (_) {
+      sleepSummary ??= const SleepSummary.empty();
+    } finally {
+      isSleepSyncing = false;
+      notifyListeners();
+    }
+  }
+
   Future<Uint8List> sendCommand(int command, [List<int> payload = const []]) async {
     if (!_ready || _tx == null) {
       throw StateError('Bracelet is not ready');
@@ -345,6 +429,13 @@ class V8BandService extends ChangeNotifier {
     final bytes = Uint8List.fromList(data);
     final cmd = bytes[0] & 0x7F;
 
+    // Exercise live packets (0x18) — handled before any other check.
+    if (cmd == V8Protocol.cmdExerciseLive) {
+      _handleExercisePacket(bytes);
+      return;
+    }
+
+    // Live vitals stream (0x09 packets).
     if (isLiveHrActive && cmd == V8Protocol.cmdRealtime && bytes.length >= 25) {
       final vitals = V8Protocol.parseLivePacket(bytes);
       if (vitals != null) {
@@ -357,8 +448,176 @@ class V8BandService extends ChangeNotifier {
       return;
     }
 
+    // Multi-packet stream commands (sleep, etc.).
+    final collector = _streamCollectors[cmd];
+    if (collector != null) {
+      final isEnd = bytes.length >= 2 && bytes[1] == 0xFF;
+      final isError = (bytes[0] & 0x80) != 0;
+      if (isEnd || isError) {
+        _streamCollectors.remove(cmd);
+        if (!collector.completer.isCompleted) {
+          collector.completer.complete(collector.packets);
+        }
+      } else {
+        collector.packets.add(bytes);
+      }
+      return;
+    }
+
+    // Single-response commands.
     final completer = _pending.remove(cmd);
     completer?.complete(bytes);
+  }
+
+  // ── Workout control ─────────────────────────────────────────────────────────
+
+  Future<bool> startWorkout(ExerciseType type) async {
+    if (!_ready) return false;
+    // Stop live HR stream to avoid 0x09/0x18 packet conflicts during exercise.
+    if (isLiveHrActive) {
+      try {
+        await stopLiveHeartRate();
+      } catch (_) {}
+    }
+    try {
+      final response = await sendCommand(V8Protocol.cmdExercise, [
+        V8Protocol.exerciseStart,
+        type.bandCode,
+        0,
+        0,
+      ]);
+      final success = response.length >= 2 && response[1] == 1;
+      if (success) {
+        activeExerciseType = type;
+        workoutStartTime = DateTime.now();
+        isWorkoutActive = true;
+        isWorkoutPaused = false;
+        workoutLive = null;
+        workoutEndedByDevice = false;
+        workoutInactiveWarning = null;
+        notifyListeners();
+      }
+      return success;
+    } catch (_) {
+      // Restart live metrics if start failed.
+      Future<void>.delayed(const Duration(milliseconds: 300)).then((_) async {
+        if (_ready && !isWorkoutActive) {
+          try {
+            await startLiveHeartRate();
+          } catch (_) {}
+        }
+      });
+      return false;
+    }
+  }
+
+  Future<void> pauseWorkout() async {
+    if (!_ready || !isWorkoutActive || isWorkoutPaused) return;
+    try {
+      await sendCommand(V8Protocol.cmdExercise,
+          [V8Protocol.exercisePause, 0, 0, 0]);
+      isWorkoutPaused = true;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> resumeWorkout() async {
+    if (!_ready || !isWorkoutActive || !isWorkoutPaused) return;
+    try {
+      await sendCommand(V8Protocol.cmdExercise,
+          [V8Protocol.exerciseResume, 0, 0, 0]);
+      isWorkoutPaused = false;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Ends the active workout, saves to history, restarts live metrics.
+  /// Returns the saved [WorkoutSummary] or null if no live data was captured.
+  Future<WorkoutSummary?> endWorkout() async {
+    WorkoutSummary? summary;
+    if (workoutLive != null && activeExerciseType != null) {
+      summary = WorkoutSummary.fromLive(
+        activeExerciseType!,
+        workoutStartTime ?? DateTime.now(),
+        workoutLive!,
+      );
+      workoutHistory.insert(0, summary);
+      if (workoutHistory.length > 20) workoutHistory.removeLast();
+    }
+    if (_ready) {
+      try {
+        await sendCommand(
+            V8Protocol.cmdExercise, [V8Protocol.exerciseEnd, 0, 0, 0]);
+      } catch (_) {}
+    }
+    _clearWorkoutState();
+    // Restart live metrics after a brief delay.
+    Future<void>.delayed(const Duration(milliseconds: 600)).then((_) async {
+      if (_ready && !isWorkoutActive) {
+        try {
+          await startLiveHeartRate();
+        } catch (_) {}
+      }
+    });
+    return summary;
+  }
+
+  void clearWorkoutWarning() {
+    workoutInactiveWarning = null;
+    notifyListeners();
+  }
+
+  void _clearWorkoutState() {
+    isWorkoutActive = false;
+    isWorkoutPaused = false;
+    workoutEndedByDevice = false;
+    workoutInactiveWarning = null;
+    workoutLive = null;
+    notifyListeners();
+  }
+
+  void _handleExercisePacket(Uint8List bytes) {
+    if (V8Protocol.isExerciseEnded(bytes)) {
+      if (isWorkoutActive) {
+        if (workoutLive != null && activeExerciseType != null) {
+          final summary = WorkoutSummary.fromLive(
+            activeExerciseType!,
+            workoutStartTime ?? DateTime.now(),
+            workoutLive!,
+          );
+          workoutHistory.insert(0, summary);
+          if (workoutHistory.length > 20) workoutHistory.removeLast();
+        }
+        workoutEndedByDevice = true;
+        isWorkoutActive = false;
+        isWorkoutPaused = false;
+        notifyListeners();
+        // Restart live metrics.
+        Future<void>.delayed(const Duration(milliseconds: 600)).then((_) async {
+          if (_ready && !isWorkoutActive) {
+            try {
+              await startLiveHeartRate();
+            } catch (_) {}
+          }
+        });
+      }
+      return;
+    }
+
+    final warning = V8Protocol.exerciseInactiveWarning(bytes);
+    if (warning != null) {
+      workoutInactiveWarning = warning;
+      notifyListeners();
+      return;
+    }
+
+    if (isWorkoutActive && !isWorkoutPaused) {
+      final live = V8Protocol.parseExerciseLive(bytes);
+      if (live != null) {
+        workoutLive = live;
+        notifyListeners();
+      }
+    }
   }
 
   void _handleDisconnect(String message) {
@@ -367,6 +626,19 @@ class V8BandService extends ChangeNotifier {
     liveVitals = null;
     liveHrStatus = null;
     deviceInfo = null;
+    sleepSummary = null;
+    isSleepSyncing = false;
+    isWorkoutActive = false;
+    isWorkoutPaused = false;
+    workoutLive = null;
+    workoutEndedByDevice = false;
+    workoutInactiveWarning = null;
+    for (final c in _streamCollectors.values) {
+      if (!c.completer.isCompleted) {
+        c.completer.completeError(StateError('Disconnected'));
+      }
+    }
+    _streamCollectors.clear();
     state = BandConnectionState.idle;
     statusMessage = message;
     notifyListeners();
@@ -401,6 +673,17 @@ class V8BandService extends ChangeNotifier {
     isLiveHrActive = false;
     liveVitals = null;
     liveHrStatus = null;
+    sleepSummary = null;
+    isSleepSyncing = false;
+    isWorkoutActive = false;
+    isWorkoutPaused = false;
+    workoutLive = null;
+    workoutEndedByDevice = false;
+    workoutInactiveWarning = null;
+    for (final c in _streamCollectors.values) {
+      if (!c.completer.isCompleted) c.completer.completeError(StateError('Disconnected'));
+    }
+    _streamCollectors.clear();
     if (state != BandConnectionState.error) {
       state = BandConnectionState.idle;
       statusMessage = 'Disconnected';
