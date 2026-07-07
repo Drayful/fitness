@@ -1,6 +1,10 @@
 # Docker Compose: optional POSTGRES_* in repo root (do not commit secrets)
 /.env
 
+# Claude Code (local context, not committed)
+CLAUDE.md
+.claude/
+
 # OS / IDE
 .DS_Store
 Thumbs.db
