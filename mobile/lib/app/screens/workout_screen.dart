@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../api/session_controller.dart';
 import '../../band/v8_band_service.dart';
 import '../../band/workout_model.dart';
 import '../../main.dart';
@@ -23,6 +24,23 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   bool _showSummary = false;
   WorkoutSummary? _summary;
   bool _warningDialogOpen = false;
+  bool _uploaded = false;
+
+  /// Send the finished workout to the backend exactly once, with a SnackBar
+  /// confirming success or failure. Called when the summary screen appears.
+  Future<void> _uploadSummary(WorkoutSummary summary) async {
+    final session = SessionScope.of(context);
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await session.uploadWorkout(summary);
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(l.t('sync_ok_workout'))));
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(l.t('sync_failed'))));
+    }
+  }
 
   @override
   void initState() {
@@ -347,6 +365,12 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   Widget _buildSummary(AppLocalizations l, V8BandService band) {
     final s = _summary;
     final accent = widget.type.accentColor;
+
+    // Upload to the server once, when the summary is first shown.
+    if (s != null && !_uploaded) {
+      _uploaded = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _uploadSummary(s));
+    }
 
     return Column(
       children: [

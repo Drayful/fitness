@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../api/session_controller.dart';
 import '../../band/sleep_model.dart';
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
@@ -15,6 +16,8 @@ class SleepScreen extends StatefulWidget {
 }
 
 class _SleepScreenState extends State<SleepScreen> {
+  bool _uploaded = false;
+
   @override
   void initState() {
     super.initState();
@@ -24,6 +27,21 @@ class _SleepScreenState extends State<SleepScreen> {
         band.syncSleepData();
       }
     });
+  }
+
+  /// Send the sleep summary to the backend once, after a sync produces data.
+  Future<void> _uploadSleep(SleepSummary summary) async {
+    final session = SessionScope.of(context);
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await session.uploadSleep(summary);
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(l.t('sync_ok_sleep'))));
+    } catch (_) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(l.t('sync_failed'))));
+    }
   }
 
   @override
@@ -36,6 +54,13 @@ class _SleepScreenState extends State<SleepScreen> {
         final c = context.appColors;
         final summary = band.sleepSummary;
         final syncing = band.isSleepSyncing;
+
+        // Upload once when sleep data becomes available.
+        if (summary != null && summary.hasData && !_uploaded) {
+          _uploaded = true;
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _uploadSleep(summary));
+        }
 
         return Scaffold(
           backgroundColor: const Color(0xFF0A0E13),

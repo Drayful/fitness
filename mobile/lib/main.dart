@@ -3,9 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'api/session_controller.dart';
+import 'app/auth_gate.dart';
 import 'app/l10n/app_localizations.dart';
 import 'app/l10n/locale_controller.dart';
-import 'app/root_shell.dart';
 import 'app/theme.dart';
 import 'band/v8_band_service.dart';
 
@@ -23,11 +24,13 @@ class FitnessApp extends StatefulWidget {
 class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
   final _bandService = V8BandService();
   final _localeController = LocaleController();
+  final _session = SessionController();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _session.load();
   }
 
   @override
@@ -35,6 +38,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _bandService.dispose();
     _localeController.dispose();
+    _session.dispose();
     super.dispose();
   }
 
@@ -50,27 +54,30 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return BandServiceScope(
       service: _bandService,
-      child: LocaleScope(
-        controller: _localeController,
-        child: AnimatedBuilder(
-          animation: _localeController,
-          builder: (context, _) {
-            return MaterialApp(
-              title: 'Fitness',
-              themeMode: ThemeMode.dark,
-              debugShowCheckedModeBanner: false,
-              darkTheme: AppTheme.dark(),
-              locale: _localeController.locale,
-              supportedLocales: AppLocalizations.supportedLocales,
-              localizationsDelegates: const [
-                AppLocalizations.delegate,
-                GlobalMaterialLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-              ],
-              home: const RootShell(),
-            );
-          },
+      child: SessionScope(
+        controller: _session,
+        child: LocaleScope(
+          controller: _localeController,
+          child: AnimatedBuilder(
+            animation: _localeController,
+            builder: (context, _) {
+              return MaterialApp(
+                title: 'Fitness',
+                themeMode: ThemeMode.dark,
+                debugShowCheckedModeBanner: false,
+                darkTheme: AppTheme.dark(),
+                locale: _localeController.locale,
+                supportedLocales: AppLocalizations.supportedLocales,
+                localizationsDelegates: const [
+                  AppLocalizations.delegate,
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                home: const AuthGate(),
+              );
+            },
+          ),
         ),
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../api/session_controller.dart';
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/locale_controller.dart';
@@ -17,6 +18,47 @@ class ProfileScreen extends StatelessWidget {
         builder: (_) => BandConnectScreen(service: service),
       ),
     );
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    final l = AppLocalizations.of(context);
+    final c = context.appColors;
+    final session = SessionScope.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF13202C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(l.t('logout_confirm'),
+            style: const TextStyle(
+                color: Color(0xFFF2F6FF), fontWeight: FontWeight.w700)),
+        content: Text(l.t('logout_confirm_sub'),
+            style: const TextStyle(color: Color(0xFF9FB0CC))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(l.t('cancel'), style: TextStyle(color: c.subtext)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(l.t('profile_logout'),
+                style: TextStyle(color: c.danger)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await session.logout();
+      // AuthGate rebuilds and shows the login screen automatically.
+    }
+  }
+
+  String _initials(String? name) {
+    if (name == null || name.trim().isEmpty) return '?';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) return parts.first.characters.first.toUpperCase();
+    return (parts.first.characters.first + parts[1].characters.first)
+        .toUpperCase();
   }
 
   void _chooseLanguage(BuildContext context) {
@@ -77,6 +119,7 @@ class ProfileScreen extends StatelessWidget {
     final l = AppLocalizations.of(context);
     final c = context.appColors;
     final band = BandServiceScope.of(context);
+    final session = SessionScope.of(context);
 
     return ListenableBuilder(
       listenable: band,
@@ -112,7 +155,7 @@ class ProfileScreen extends StatelessWidget {
                         colors: [c.accent, c.accent2],
                       ),
                     ),
-                    child: Text('AC',
+                    child: Text(_initials(session.userName),
                         style: GoogleFonts.spaceGrotesk(
                             fontSize: 22,
                             fontWeight: FontWeight.w700,
@@ -123,18 +166,17 @@ class ProfileScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Alex Carter',
+                        Text(session.userName ?? 'User',
                             style: GoogleFonts.spaceGrotesk(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                                 color: const Color(0xFFF2F6FF))),
                         const SizedBox(height: 2),
-                        Text(l.t('member_since'),
+                        Text(session.userEmail ?? l.t('member_since'),
                             style: TextStyle(color: c.subtext, fontSize: 13)),
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right, color: c.subtext),
                 ],
               ),
             ),
@@ -265,6 +307,33 @@ class ProfileScreen extends StatelessWidget {
                     onTap: () => _chooseLanguage(context),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 22),
+
+            // Account section
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 8),
+              child: Text(l.t('account'),
+                  style: TextStyle(
+                      color: c.subtext,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2)),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                color: const Color(0xFF101924),
+                border: Border.all(color: const Color(0xFF1C2838)),
+              ),
+              child: _settingRow(
+                c,
+                Icons.logout,
+                c.danger,
+                l.t('profile_logout'),
+                session.userEmail ?? '',
+                onTap: () => _logout(context),
               ),
             ),
           ],
