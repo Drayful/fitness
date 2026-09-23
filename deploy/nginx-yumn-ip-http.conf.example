@@ -1,12 +1,12 @@
-# Install only after checking existing port-80 server blocks with nginx -T.
-# If Laravel is directly in /var/www/ella_mobile, adjust root.
+# Example for the deployed fitness-api.service reverse proxy.
+# Check existing port-80 server blocks with nginx -T before installing.
 server {
     listen 80;
     server_name 80.242.213.87;
-    root /var/www/ella_mobile/backend/public;
-    index index.php;
 
     location ^~ /.well-known/acme-challenge/ {
+        root /var/www/ella_mobile/backend/public;
+        default_type text/plain;
         try_files $uri =404;
     }
 
