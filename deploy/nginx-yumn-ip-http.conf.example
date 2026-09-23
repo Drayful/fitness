@@ -1,0 +1,16 @@
+# Install only after checking existing port-80 server blocks with nginx -T.
+# If Laravel is directly in /var/www/ella_mobile, adjust root.
+server {
+    listen 80;
+    server_name 80.242.213.87;
+    root /var/www/ella_mobile/backend/public;
+    index index.php;
+
+    location ^~ /.well-known/acme-challenge/ {
+        try_files $uri =404;
+    }
+
+    location / {
+        return 308 https://80.242.213.87$request_uri;
+    }
+}

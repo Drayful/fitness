@@ -22,11 +22,10 @@ class CheckinController extends Controller
             ['user_id' => $request->user()->id, 'date' => $date],
             [
                 'sleep_hours' => (float) $data['sleep_hours'],
-                'sleep_quality' => array_key_exists('sleep_quality', $data) ? (float) $data['sleep_quality'] : 0.5,
+                'sleep_quality' => (float) ($data['sleep_quality'] ?? 0.5),
             ]
         );
 
         return response()->json(['daily_metric' => $metric], 201);
     }
 }
-

@@ -29,11 +29,17 @@ class ProfileScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF13202C),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(l.t('logout_confirm'),
-            style: const TextStyle(
-                color: Color(0xFFF2F6FF), fontWeight: FontWeight.w700)),
-        content: Text(l.t('logout_confirm_sub'),
-            style: const TextStyle(color: Color(0xFF9FB0CC))),
+        title: Text(
+          l.t('logout_confirm'),
+          style: const TextStyle(
+            color: Color(0xFFF2F6FF),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          l.t('logout_confirm_sub'),
+          style: const TextStyle(color: Color(0xFF9FB0CC)),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -41,13 +47,18 @@ class ProfileScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l.t('profile_logout'),
-                style: TextStyle(color: c.danger)),
+            child: Text(
+              l.t('profile_logout'),
+              style: TextStyle(color: c.danger),
+            ),
           ),
         ],
       ),
     );
-    if (confirmed == true) {
+    if (confirmed == true && context.mounted) {
+      final band = BandServiceScope.of(context);
+      await band.disconnect();
+      band.workoutHistory.clear();
       await session.logout();
       // AuthGate rebuilds and shows the login screen automatically.
     }
@@ -82,21 +93,27 @@ class ProfileScreen extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: Text(l.t('choose_language'),
-                      style: GoogleFonts.spaceGrotesk(
-                          fontSize: 18, fontWeight: FontWeight.w700)),
+                  child: Text(
+                    l.t('choose_language'),
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
                 ...AppLocalizations.supportedLocales.map((loc) {
                   final code = loc.languageCode;
                   final selected = code == current;
                   return ListTile(
-                    title: Text(AppLocalizations.localeNames[code] ?? code,
-                        style: TextStyle(
-                            fontWeight:
-                                selected ? FontWeight.w700 : FontWeight.w500,
-                            color: selected
-                                ? c.accent
-                                : const Color(0xFFEEF3FB))),
+                    title: Text(
+                      AppLocalizations.localeNames[code] ?? code,
+                      style: TextStyle(
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: selected ? c.accent : const Color(0xFFEEF3FB),
+                      ),
+                    ),
                     trailing: selected
                         ? Icon(Icons.check, color: c.accent)
                         : null,
@@ -131,12 +148,15 @@ class ProfileScreen extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
           children: [
-            Text(l.t('profile'),
-                style: GoogleFonts.spaceGrotesk(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF2F6FF),
-                    letterSpacing: -0.5)),
+            Text(
+              l.t('profile'),
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFF2F6FF),
+                letterSpacing: -0.5,
+              ),
+            ),
             const SizedBox(height: 16),
 
             // Profile card
@@ -155,25 +175,33 @@ class ProfileScreen extends StatelessWidget {
                         colors: [c.accent, c.accent2],
                       ),
                     ),
-                    child: Text(_initials(session.userName),
-                        style: GoogleFonts.spaceGrotesk(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF06120C))),
+                    child: Text(
+                      _initials(session.userName),
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF06120C),
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(session.userName ?? 'User',
-                            style: GoogleFonts.spaceGrotesk(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFFF2F6FF))),
+                        Text(
+                          session.userName ?? 'User',
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFFF2F6FF),
+                          ),
+                        ),
                         const SizedBox(height: 2),
-                        Text(session.userEmail ?? l.t('member_since'),
-                            style: TextStyle(color: c.subtext, fontSize: 13)),
+                        Text(
+                          session.userEmail ?? '—',
+                          style: TextStyle(color: c.subtext, fontSize: 13),
+                        ),
                       ],
                     ),
                   ),
@@ -213,11 +241,14 @@ class ProfileScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('V8 Band',
-                                style: TextStyle(
-                                    color: Color(0xFFEEF3FB),
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700)),
+                            Text(
+                              band.deviceInfo?.name ?? l.t('bracelet'),
+                              style: const TextStyle(
+                                color: Color(0xFFEEF3FB),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                             const SizedBox(height: 3),
                             Row(
                               children: [
@@ -236,9 +267,10 @@ class ProfileScreen extends StatelessWidget {
                                         ? l.t('connected')
                                         : l.t('not_connected'),
                                     style: TextStyle(
-                                        color: connected ? c.accent : c.subtext,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600),
+                                      color: connected ? c.accent : c.subtext,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -250,9 +282,12 @@ class ProfileScreen extends StatelessWidget {
                         onPressed: () => _openBandScreen(context),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: c.accent,
-                          side: BorderSide(color: c.accent.withValues(alpha: 0.5)),
+                          side: BorderSide(
+                            color: c.accent.withValues(alpha: 0.5),
+                          ),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         child: Text(connected ? l.t('manage') : l.t('connect')),
                       ),
@@ -262,13 +297,21 @@ class ProfileScreen extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: _bandStat(c, l.t('battery'),
-                            battery != null ? '$battery%' : '—', c.accent),
+                        child: _bandStat(
+                          c,
+                          l.t('battery'),
+                          battery != null ? '$battery%' : '—',
+                          c.accent,
+                        ),
                       ),
                       const SizedBox(width: 11),
                       Expanded(
-                        child: _bandStat(c, l.t('firmware'),
-                            firmware ?? '—', const Color(0xFFEEF3FB)),
+                        child: _bandStat(
+                          c,
+                          l.t('firmware'),
+                          firmware ?? '—',
+                          const Color(0xFFEEF3FB),
+                        ),
                       ),
                     ],
                   ),
@@ -286,14 +329,30 @@ class ProfileScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  _settingRow(c, Icons.watch_outlined, c.sleep, l.t('bracelet'),
-                      l.t('bracelet_sub'), onTap: () => _openBandScreen(context)),
+                  _settingRow(
+                    c,
+                    Icons.watch_outlined,
+                    c.sleep,
+                    l.t('bracelet'),
+                    l.t('bracelet_sub'),
+                    onTap: () => _openBandScreen(context),
+                  ),
                   _divider(),
-                  _settingRow(c, Icons.lock_outline, c.warn, l.t('privacy'),
-                      l.t('privacy_sub')),
+                  _settingRow(
+                    c,
+                    Icons.lock_outline,
+                    c.warn,
+                    l.t('privacy'),
+                    l.t('privacy_sub'),
+                  ),
                   _divider(),
-                  _settingRow(c, Icons.cloud_outlined, c.accent2, l.t('api'),
-                      l.t('api_sub')),
+                  _settingRow(
+                    c,
+                    Icons.cloud_outlined,
+                    c.accent2,
+                    l.t('api'),
+                    l.t('api_sub'),
+                  ),
                   _divider(),
                   _settingRow(
                     c,
@@ -301,8 +360,10 @@ class ProfileScreen extends StatelessWidget {
                     c.accent,
                     l.t('language'),
                     l.t('language_sub'),
-                    trailingText: AppLocalizations
-                            .localeNames[LocaleScope.of(context).locale.languageCode] ??
+                    trailingText:
+                        AppLocalizations.localeNames[LocaleScope.of(
+                          context,
+                        ).locale.languageCode] ??
                         '',
                     onTap: () => _chooseLanguage(context),
                   ),
@@ -314,12 +375,15 @@ class ProfileScreen extends StatelessWidget {
             // Account section
             Padding(
               padding: const EdgeInsets.only(left: 4, bottom: 8),
-              child: Text(l.t('account'),
-                  style: TextStyle(
-                      color: c.subtext,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2)),
+              child: Text(
+                l.t('account'),
+                style: TextStyle(
+                  color: c.subtext,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
+              ),
             ),
             Container(
               decoration: BoxDecoration(
@@ -343,19 +407,19 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _card({required Widget child}) => Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          color: const Color(0xFF101924),
-          border: Border.all(color: const Color(0xFF1C2838)),
-        ),
-        child: child,
-      );
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(22),
+      color: const Color(0xFF101924),
+      border: Border.all(color: const Color(0xFF1C2838)),
+    ),
+    child: child,
+  );
 
   Widget _divider() => const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16),
-        child: Divider(height: 1, color: Color(0xFF1C2838)),
-      );
+    padding: EdgeInsets.symmetric(horizontal: 16),
+    child: Divider(height: 1, color: Color(0xFF1C2838)),
+  );
 
   Widget _bandStat(AppColors c, String label, String value, Color color) {
     return Container(
@@ -367,13 +431,23 @@ class ProfileScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: TextStyle(
-                  color: c.subtext, fontSize: 10, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(
+              color: c.subtext,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(value,
-              style: GoogleFonts.spaceGrotesk(
-                  fontSize: 18, fontWeight: FontWeight.w700, color: color)),
+          Text(
+            value,
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -409,26 +483,35 @@ class ProfileScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          color: Color(0xFFEEF3FB),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Color(0xFFEEF3FB),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 1),
-                  Text(subtitle,
-                      style: TextStyle(color: c.subtext, fontSize: 11.5)),
+                  Text(
+                    subtitle,
+                    style: TextStyle(color: c.subtext, fontSize: 11.5),
+                  ),
                 ],
               ),
             ),
             if (trailingText != null && trailingText.isNotEmpty) ...[
-              Text(trailingText,
-                  style: TextStyle(
-                      color: c.accent,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700)),
+              Text(
+                trailingText,
+                style: TextStyle(
+                  color: c.accent,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               const SizedBox(width: 7),
             ],
-            Icon(Icons.chevron_right, color: c.subtext, size: 18),
+            if (onTap != null)
+              Icon(Icons.chevron_right, color: c.subtext, size: 18),
           ],
         ),
       ),

@@ -44,8 +44,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.detached) {
       unawaited(_bandService.disconnect());
     }
   }
@@ -94,11 +93,13 @@ class BandServiceScope extends InheritedWidget {
   final V8BandService service;
 
   static V8BandService of(BuildContext context) {
-    final scope = context.dependOnInheritedWidgetOfExactType<BandServiceScope>();
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<BandServiceScope>();
     assert(scope != null, 'BandServiceScope not found');
     return scope!.service;
   }
 
   @override
-  bool updateShouldNotify(BandServiceScope oldWidget) => service != oldWidget.service;
+  bool updateShouldNotify(BandServiceScope oldWidget) =>
+      service != oldWidget.service;
 }

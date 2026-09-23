@@ -23,9 +23,12 @@ backend/vendor/
 backend/node_modules/
 backend/storage/*.key
 backend/storage/app/public/
-backend/storage/framework/cache/
-backend/storage/framework/sessions/
-backend/storage/framework/views/
+backend/storage/framework/cache/*
+!backend/storage/framework/cache/data/
+backend/storage/framework/sessions/*
+!backend/storage/framework/sessions/.gitignore
+backend/storage/framework/views/*
+!backend/storage/framework/views/.gitignore
 backend/storage/logs/
 backend/.env
 

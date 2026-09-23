@@ -38,7 +38,17 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       messenger.showSnackBar(SnackBar(content: Text(l.t('sync_ok_workout'))));
     } catch (_) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(l.t('sync_failed'))));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l.t('sync_failed')),
+          action: SnackBarAction(
+            label: l.t('retry'),
+            onPressed: () {
+              if (mounted) _uploadSummary(summary);
+            },
+          ),
+        ),
+      );
     }
   }
 
@@ -46,6 +56,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
       final band = BandServiceScope.of(context);
       final ok = await band.startWorkout(widget.type);
       if (!mounted) return;
@@ -62,7 +73,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         setState(() {
-          _summary = band.workoutHistory.firstOrNull;
+          _summary = band.workoutHistory
+              .where((w) => w.startTime == band.workoutStartTime)
+              .firstOrNull;
           _showSummary = true;
           band.workoutEndedByDevice = false;
         });
@@ -91,7 +104,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         title: Text(
           l.t('workout_still_active'),
           style: const TextStyle(
-              color: Color(0xFFF2F6FF), fontWeight: FontWeight.w700),
+            color: Color(0xFFF2F6FF),
+            fontWeight: FontWeight.w700,
+          ),
         ),
         content: Text(
           l.t('workout_inactive_msg').replaceFirst('%m', minutes),
@@ -104,8 +119,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
               _warningDialogOpen = false;
               Navigator.of(ctx).pop();
             },
-            child: Text(l.t('workout_continue'),
-                style: TextStyle(color: widget.type.accentColor)),
+            child: Text(
+              l.t('workout_continue'),
+              style: TextStyle(color: widget.type.accentColor),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -119,8 +136,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                 });
               }
             },
-            child: Text(l.t('workout_end'),
-                style: const TextStyle(color: Color(0xFFFF5F5F))),
+            child: Text(
+              l.t('workout_end'),
+              style: const TextStyle(color: Color(0xFFFF5F5F)),
+            ),
           ),
         ],
       ),
@@ -134,21 +153,31 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF13202C),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(l.t('workout_end_confirm'),
-            style: const TextStyle(
-                color: Color(0xFFF2F6FF), fontWeight: FontWeight.w700)),
-        content: Text(l.t('workout_end_confirm_sub'),
-            style: const TextStyle(color: Color(0xFF9FB0CC))),
+        title: Text(
+          l.t('workout_end_confirm'),
+          style: const TextStyle(
+            color: Color(0xFFF2F6FF),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          l.t('workout_end_confirm_sub'),
+          style: const TextStyle(color: Color(0xFF9FB0CC)),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l.t('workout_continue'),
-                style: TextStyle(color: widget.type.accentColor)),
+            child: Text(
+              l.t('workout_continue'),
+              style: TextStyle(color: widget.type.accentColor),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l.t('workout_end'),
-                style: const TextStyle(color: Color(0xFFFF5F5F))),
+            child: Text(
+              l.t('workout_end'),
+              style: const TextStyle(color: Color(0xFFFF5F5F)),
+            ),
           ),
         ],
       ),
@@ -195,10 +224,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
               child: _starting
                   ? _buildStarting(l, accent)
                   : _startFailed
-                      ? _buildFailed(l, accent)
-                      : _showSummary
-                          ? _buildSummary(l, band)
-                          : _buildActive(l, band, accent),
+                  ? _buildFailed(l, accent)
+                  : _showSummary
+                  ? _buildSummary(l, band)
+                  : _buildActive(l, band, accent),
             ),
           ),
         );
@@ -215,17 +244,23 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         children: [
           Icon(widget.type.icon, color: accent, size: 56),
           const SizedBox(height: 20),
-          Text(l.t('workout_starting'),
-              style: const TextStyle(
-                  color: Color(0xFFDBE3F0),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600)),
+          Text(
+            l.t('workout_starting'),
+            style: const TextStyle(
+              color: Color(0xFFDBE3F0),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 16),
           SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(
-                  strokeWidth: 3, valueColor: AlwaysStoppedAnimation(accent))),
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation(accent),
+            ),
+          ),
         ],
       ),
     );
@@ -240,23 +275,32 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         children: [
           const Icon(Icons.error_outline, color: Color(0xFFFF5F5F), size: 56),
           const SizedBox(height: 16),
-          Text(l.t('workout_start_failed'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: Color(0xFFDBE3F0),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600)),
+          Text(
+            l.t('workout_start_failed'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFFDBE3F0),
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(l.t('workout_start_failed_sub'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF6B7E96), fontSize: 14)),
+          Text(
+            l.t('workout_start_failed_sub'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Color(0xFF6B7E96), fontSize: 14),
+          ),
           const SizedBox(height: 28),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
             style: FilledButton.styleFrom(backgroundColor: accent),
-            child: Text(l.t('back'),
-                style: const TextStyle(
-                    color: Color(0xFF090F17), fontWeight: FontWeight.w700)),
+            child: Text(
+              l.t('back'),
+              style: const TextStyle(
+                color: Color(0xFF090F17),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -265,8 +309,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   // ── Active Workout ──────────────────────────────────────────────────────────
 
-  Widget _buildActive(
-      AppLocalizations l, V8BandService band, Color accent) {
+  Widget _buildActive(AppLocalizations l, V8BandService band, Color accent) {
     final live = band.workoutLive;
     final paused = band.isWorkoutPaused;
     final type = widget.type;
@@ -299,8 +342,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                 // Hero metric: distance (for outdoor types) or duration
                 if (type.showDistance)
                   _HeroMetric(
-                    value: live?.distanceValueStr ?? '0.00',
-                    unit: live?.distanceUnit ?? 'km',
+                    value: (live?.distanceM ?? 0) > 0
+                        ? live!.distanceValueStr
+                        : '—',
+                    unit: (live?.distanceM ?? 0) > 0 ? live!.distanceUnit : '',
                     label: l.t('workout_distance'),
                     accent: accent,
                   )
@@ -369,7 +414,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     // Upload to the server once, when the summary is first shown.
     if (s != null && !_uploaded) {
       _uploaded = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _uploadSummary(s));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _uploadSummary(s);
+      });
     }
 
     return Column(
@@ -412,8 +459,11 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                 const SizedBox(height: 4),
                 Text(
                   _exerciseName(widget.type, l),
-                  style: TextStyle(color: accent, fontSize: 14,
-                      fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 28),
                 if (s != null) ...[
@@ -422,7 +472,9 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   Text(
                     l.t('workout_no_data'),
                     style: const TextStyle(
-                        color: Color(0xFF6B7E96), fontSize: 14),
+                      color: Color(0xFF6B7E96),
+                      fontSize: 14,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 32),
@@ -434,14 +486,16 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                       backgroundColor: accent,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16)),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
                     child: Text(
                       l.t('workout_done'),
                       style: const TextStyle(
-                          color: Color(0xFF090F17),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16),
+                        color: Color(0xFF090F17),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                 ),
@@ -490,8 +544,7 @@ class _ActiveHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 8, 16, 12),
       decoration: const BoxDecoration(
-        border: Border(
-            bottom: BorderSide(color: Color(0xFF1A2535))),
+        border: Border(bottom: BorderSide(color: Color(0xFF1A2535))),
       ),
       child: Row(
         children: [
@@ -626,8 +679,8 @@ class _StatsGrid extends StatelessWidget {
     final paceStr = live?.paceStr ?? '--:--';
     final distStr = type.showDistance
         ? (live != null
-            ? '${live!.distanceValueStr} ${live!.distanceUnit}'
-            : '--')
+              ? '${live!.distanceValueStr} ${live!.distanceUnit}'
+              : '--')
         : null;
     final durStr = live?.durationStr ?? '--:--';
 
@@ -742,9 +795,10 @@ class _StatCell extends StatelessWidget {
                   TextSpan(
                     text: ' $unit',
                     style: TextStyle(
-                        fontSize: 13,
-                        color: color,
-                        fontWeight: FontWeight.w600),
+                      fontSize: 13,
+                      color: color,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
               ],
             ),
@@ -753,9 +807,10 @@ class _StatCell extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-                color: Color(0xFF6B7E96),
-                fontSize: 11,
-                fontWeight: FontWeight.w600),
+              color: Color(0xFF6B7E96),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -801,9 +856,10 @@ class _ControlButton extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                  color: fg,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700),
+                color: fg,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
@@ -835,27 +891,47 @@ class _SummaryCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _row(Icons.timer_rounded, l.t('workout_duration'),
-              live.durationStr, accent),
+          _row(
+            Icons.timer_rounded,
+            l.t('workout_duration'),
+            live.durationStr,
+            accent,
+          ),
           if (summary.type.showDistance) ...[
             _divider(),
-            _row(Icons.route_rounded, l.t('workout_distance'),
-                '${live.distanceValueStr} ${live.distanceUnit}', accent),
+            _row(
+              Icons.route_rounded,
+              l.t('workout_distance'),
+              live.distanceM > 0
+                  ? '${live.distanceValueStr} ${live.distanceUnit}'
+                  : '—',
+              accent,
+            ),
           ],
           _divider(),
-          _row(Icons.local_fire_department_rounded, l.t('workout_calories'),
-              '${live.caloriesStr} ${l.t('kcal')}',
-              const Color(0xFFFFB23E)),
+          _row(
+            Icons.local_fire_department_rounded,
+            l.t('workout_calories'),
+            '${live.caloriesStr} ${l.t('kcal')}',
+            const Color(0xFFFFB23E),
+          ),
           _divider(),
-          _row(Icons.favorite_rounded, l.t('workout_avg_hr'),
-              live.heartRate > 0 ? '${live.heartRate} ${l.t('bpm')}' : '--',
-              const Color(0xFFFF5F9E)),
+          _row(
+            Icons.favorite_rounded,
+            l.t('workout_last_hr'),
+            live.heartRate > 0 ? '${live.heartRate} ${l.t('bpm')}' : '--',
+            const Color(0xFFFF5F9E),
+          ),
           _divider(),
           _row(Icons.directions_walk, l.t('steps'), live.stepsStr, accent),
           if (summary.type.showDistance && live.distanceM >= 10) ...[
             _divider(),
-            _row(Icons.speed_rounded, l.t('workout_pace'),
-                '${live.paceStr} /km', const Color(0xFF9B8CFF)),
+            _row(
+              Icons.speed_rounded,
+              l.t('workout_pace'),
+              '${live.paceStr} /km',
+              const Color(0xFF9B8CFF),
+            ),
           ],
         ],
       ),
@@ -869,15 +945,19 @@ class _SummaryCard extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 18),
           const SizedBox(width: 12),
-          Text(label,
-              style: const TextStyle(
-                  color: Color(0xFF9FB0CC), fontSize: 14)),
+          Text(
+            label,
+            style: const TextStyle(color: Color(0xFF9FB0CC), fontSize: 14),
+          ),
           const Spacer(),
-          Text(value,
-              style: GoogleFonts.spaceGrotesk(
-                  color: const Color(0xFFF2F6FF),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700)),
+          Text(
+            value,
+            style: GoogleFonts.spaceGrotesk(
+              color: const Color(0xFFF2F6FF),
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );

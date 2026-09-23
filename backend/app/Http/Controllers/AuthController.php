@@ -14,8 +14,10 @@ class AuthController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
+            'password' => ['required', 'string', 'min:8', 'max:72'],
         ]);
+
+        $this->validatePasswordBytes($data['password']);
 
         $user = User::create([
             'name' => $data['name'],
@@ -35,12 +37,14 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
+            'password' => ['required', 'string', 'max:72'],
         ]);
+
+        $this->validatePasswordBytes($data['password']);
 
         $user = User::where('email', $data['email'])->first();
 
-        if (!$user || !Hash::check($data['password'], $user->password)) {
+        if (! $user || ! Hash::check($data['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['Invalid credentials.'],
             ]);
@@ -52,6 +56,15 @@ class AuthController extends Controller
             'user' => $user,
             'token' => $token,
         ]);
+    }
+
+    private function validatePasswordBytes(string $password): void
+    {
+        if (strlen($password) > 72 || str_contains($password, "\0")) {
+            throw ValidationException::withMessages([
+                'password' => ['Password must not exceed 72 UTF-8 bytes or contain null characters.'],
+            ]);
+        }
     }
 
     public function logout(Request $request)
@@ -66,4 +79,3 @@ class AuthController extends Controller
         return response()->json(['user' => $request->user()]);
     }
 }
-

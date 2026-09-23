@@ -1,17 +1,29 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../band/sleep_model.dart';
 import '../band/workout_model.dart';
 import 'api_client.dart';
 
 /// Holds authentication state (Sanctum token + current user) and exposes
-/// high-level actions the UI calls. Token is persisted in shared_preferences
+/// high-level actions the UI calls. Token is persisted in platform secure storage
 /// so the user stays logged in across launches.
 class SessionController extends ChangeNotifier {
   SessionController({ApiClient? api}) : api = api ?? ApiClient();
 
   final ApiClient api;
+  final _storage = const FlutterSecureStorage();
+  bool _disposed = false;
+  int _sessionGeneration = 0;
+  Future<void> _uploadSerial = Future.value();
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
 
   static const _tokenKey = 'auth_token';
   static const _userNameKey = 'auth_user_name';
@@ -28,13 +40,28 @@ class SessionController extends ChangeNotifier {
 
   /// Load a persisted token on app start.
   Future<void> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString(_tokenKey);
-    userName = prefs.getString(_userNameKey);
-    userEmail = prefs.getString(_userEmailKey);
-    api.token = _token;
-    _bootstrapping = false;
-    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // Remove the old plaintext session; require login after this upgrade.
+      await prefs.remove(_tokenKey);
+      await prefs.remove(_userNameKey);
+      await prefs.remove(_userEmailKey);
+      final savedToken = await _storage.read(key: _tokenKey);
+      final savedName = await _storage.read(key: _userNameKey);
+      final savedEmail = await _storage.read(key: _userEmailKey);
+      if (_disposed) return;
+      _token = savedToken;
+      userName = savedName;
+      userEmail = savedEmail;
+      api.token = _token;
+      unawaited(retryPendingWorkouts().catchError((_) {}));
+    } catch (_) {
+      _token = null;
+      api.token = null;
+    } finally {
+      _bootstrapping = false;
+      notifyListeners();
+    }
   }
 
   Future<void> register({
@@ -42,19 +69,21 @@ class SessionController extends ChangeNotifier {
     required String email,
     required String password,
   }) async {
-    final res = await api.register(name: name, email: email, password: password);
+    final res = await api.register(
+      name: name,
+      email: email,
+      password: password,
+    );
     await _applyAuth(res);
   }
 
-  Future<void> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> login({required String email, required String password}) async {
     final res = await api.login(email: email, password: password);
     await _applyAuth(res);
   }
 
   Future<void> logout() async {
+    _sessionGeneration++;
     try {
       await api.logout();
     } catch (_) {
@@ -64,14 +93,21 @@ class SessionController extends ChangeNotifier {
     api.token = null;
     userName = null;
     userEmail = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-    await prefs.remove(_userNameKey);
-    await prefs.remove(_userEmailKey);
-    notifyListeners();
+    try {
+      await _storage.delete(key: _tokenKey);
+      await _storage.delete(key: _userNameKey);
+      await _storage.delete(key: _userEmailKey);
+    } finally {
+      notifyListeners();
+    }
   }
 
   Future<void> _applyAuth(Map<String, dynamic> res) async {
+    if (res['token'] is! String || (res['token'] as String).isEmpty) {
+      throw ApiException('Сервер не вернул токен авторизации.');
+    }
+    _sessionGeneration++;
+    await _storage.write(key: _tokenKey, value: res['token'] as String);
     _token = res['token'] as String?;
     api.token = _token;
     final user = res['user'];
@@ -79,36 +115,84 @@ class SessionController extends ChangeNotifier {
       userName = user['name'] as String?;
       userEmail = user['email'] as String?;
     }
-    final prefs = await SharedPreferences.getInstance();
-    if (_token != null) await prefs.setString(_tokenKey, _token!);
-    if (userName != null) await prefs.setString(_userNameKey, userName!);
-    if (userEmail != null) await prefs.setString(_userEmailKey, userEmail!);
+    await _storage.write(key: _userNameKey, value: userName);
+    await _storage.write(key: _userEmailKey, value: userEmail);
     notifyListeners();
+    unawaited(retryPendingWorkouts().catchError((_) {}));
   }
 
   // ── Data uploads (band → API) ───────────────────────────────────────────────
 
-  /// Push a finished workout to the backend. The DB stores summaries only, so
-  /// the richer live metrics (steps, calories, distance, HR) are packed into
-  /// [notes] to avoid losing them.
-  Future<void> uploadWorkout(WorkoutSummary s) async {
-    final minutes = (s.durationSeconds / 60).round().clamp(1, 600);
-    final notes = 'steps=${s.steps}; kcal=${s.calories.round()}; '
-        'dist=${s.distanceM.round()}m; hr=${s.heartRate}';
-    await api.createWorkout(
-      performedAt: s.startTime,
-      type: s.type.name,
-      durationMinutes: minutes,
-      intensity: _intensityFromHr(s.heartRate),
-      notes: notes,
-    );
+  /// Save pending summaries securely per account before attempting delivery.
+  /// Stable IDs make a retry after a lost HTTP response safe on the backend.
+  Future<void> uploadWorkout(WorkoutSummary s) {
+    final payload = <String, dynamic>{
+      'client_id':
+          '${s.type.name}-${s.startTime.toUtc().microsecondsSinceEpoch}',
+      'performed_at': s.startTime.toUtc().toIso8601String(),
+      'type': s.type.name,
+      'duration_minutes': (s.durationSeconds / 60).round().clamp(1, 600),
+      'intensity': _intensityFromHr(s.heartRate),
+      'metrics': {
+        'steps': s.steps,
+        'calories': s.calories,
+        'distance_m': s.distanceM > 0 ? s.distanceM : null,
+        'last_heart_rate': s.heartRate > 0 ? s.heartRate : null,
+        'duration_seconds': s.durationSeconds,
+      },
+    };
+    return _queueUpload(payload);
+  }
+
+  Future<void> retryPendingWorkouts() => _queueUpload(null);
+
+  Future<void> _queueUpload(Map<String, dynamic>? incoming) {
+    if (!isAuthenticated || userEmail == null || _disposed) {
+      return incoming == null
+          ? Future.value()
+          : Future.error(StateError('Sign in before uploading'));
+    }
+    final generation = _sessionGeneration;
+    final key = 'pending_workouts_${Uri.encodeComponent(userEmail!)}';
+    final operation = _uploadSerial.then((_) async {
+      if (generation != _sessionGeneration || _disposed) return;
+      final stored = await _storage.read(key: key);
+      final pending = stored == null
+          ? <Map<String, dynamic>>[]
+          : (jsonDecode(stored) as List)
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+      if (incoming != null &&
+          !pending.any((e) => e['client_id'] == incoming['client_id'])) {
+        pending.add(incoming);
+        await _storage.write(key: key, value: jsonEncode(pending));
+      }
+      while (pending.isNotEmpty) {
+        if (generation != _sessionGeneration || _disposed) return;
+        final next = pending.first;
+        await api.createWorkout(
+          performedAt: DateTime.parse(next['performed_at'] as String),
+          type: next['type'] as String,
+          durationMinutes: next['duration_minutes'] as int,
+          intensity: next['intensity'] as int,
+          clientId: next['client_id'] as String,
+          metrics: Map<String, dynamic>.from(next['metrics'] as Map),
+        );
+        pending.removeAt(0);
+        await _storage.write(key: key, value: jsonEncode(pending));
+      }
+    });
+    _uploadSerial = operation.catchError((_) {});
+    return operation;
   }
 
   /// Push a sleep summary as the daily sleep metric.
   Future<void> uploadSleep(SleepSummary s) async {
-    if (!s.hasData) return;
+    if (!s.hasValidatedStages) {
+      throw StateError('Sleep interpretation is not verified');
+    }
     await api.sleepCheckin(
-      date: s.bedTime,
+      date: s.wakeTime,
       sleepHours: s.sleepMinutes / 60.0,
       sleepQuality: (s.score / 100.0).clamp(0.0, 1.0),
     );
@@ -123,6 +207,8 @@ class SessionController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _sessionGeneration++;
     api.dispose();
     super.dispose();
   }

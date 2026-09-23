@@ -1,9 +1,29 @@
-enum SleepStage { deep, light, rem, awake }
+enum SleepStage { deep, light, rem, awake, unknown }
 
 class SleepRecord {
-  const SleepRecord({required this.start, required this.stages});
+  const SleepRecord({
+    required this.start,
+    required this.stages,
+    this.unitMinutes = 1,
+    this.rawValues = const [],
+  });
+
   final DateTime start;
-  final List<SleepStage> stages; // one entry per minute
+  final List<SleepStage> stages;
+
+  /// Vendor values retained without inventing a physiological stage mapping.
+  final List<int> rawValues;
+
+  /// Minutes covered by each entry in [stages]. Legacy firmware reports one
+  /// minute per entry; 2208A uses five in its packed 34-byte records.
+  final int unitMinutes;
+
+  int get durationMinutes => stages.length * unitMinutes;
+
+  /// [stages] flattened to one entry per minute.
+  Iterable<SleepStage> get perMinuteStages => unitMinutes == 1
+      ? stages
+      : stages.expand((s) => List.filled(unitMinutes, s));
 }
 
 class SleepSummary {
@@ -19,23 +39,37 @@ class SleepSummary {
   });
 
   const SleepSummary.empty()
-      : bedTime = null,
-        wakeTime = null,
-        deepMinutes = 0,
-        lightMinutes = 0,
-        remMinutes = 0,
-        awakeMinutes = 0,
-        timeline = const <SleepStage>[],
-        score = 0;
+    : bedTime = null,
+      wakeTime = null,
+      deepMinutes = 0,
+      lightMinutes = 0,
+      remMinutes = 0,
+      awakeMinutes = 0,
+      timeline = const <SleepStage>[],
+      score = 0;
 
   factory SleepSummary.fromRecords(List<SleepRecord> records) {
     if (records.isEmpty) return const SleepSummary.empty();
 
     final sorted = [...records]..sort((a, b) => a.start.compareTo(b.start));
-    final timeline = <SleepStage>[];
+    // Select the most recent episode, preserving gaps and deduplicating retries.
+    final minutes = <int, SleepStage>{};
     for (final r in sorted) {
-      timeline.addAll(r.stages);
+      var t = r.start.millisecondsSinceEpoch ~/ 60000;
+      for (final stage in r.perMinuteStages) {
+        minutes[t++] = stage;
+      }
     }
+    if (minutes.isEmpty) return const SleepSummary.empty();
+    final timestamps = minutes.keys.toList()..sort();
+    var first = timestamps.first;
+    for (var i = 1; i < timestamps.length; i++) {
+      if (timestamps[i] - timestamps[i - 1] > 180) first = timestamps[i];
+    }
+    final last = timestamps.last;
+    final timeline = [
+      for (var t = first; t <= last; t++) minutes[t] ?? SleepStage.unknown,
+    ];
 
     var deep = 0, light = 0, rem = 0, awake = 0;
     for (final s in timeline) {
@@ -48,6 +82,8 @@ class SleepSummary {
           rem++;
         case SleepStage.awake:
           awake++;
+        case SleepStage.unknown:
+          break;
       }
     }
 
@@ -55,15 +91,13 @@ class SleepSummary {
     final score = total == 0
         ? 0
         : ((deep * 2.5 + rem * 2.0 + light * 1.0) / (total * 2.5) * 100)
-            .round()
-            .clamp(0, 100);
+              .round()
+              .clamp(0, 100);
 
-    final wakeTime = sorted.last.start.add(
-      Duration(minutes: sorted.last.stages.length),
-    );
+    final wakeTime = DateTime.fromMillisecondsSinceEpoch((last + 1) * 60000);
 
     return SleepSummary(
-      bedTime: sorted.first.start,
+      bedTime: DateTime.fromMillisecondsSinceEpoch(first * 60000),
       wakeTime: wakeTime,
       deepMinutes: deep,
       lightMinutes: light,
@@ -84,7 +118,10 @@ class SleepSummary {
   final int score;
 
   bool get hasData => timeline.isNotEmpty;
-  int get totalMinutes => deepMinutes + lightMinutes + remMinutes + awakeMinutes;
+  bool get hasValidatedStages =>
+      hasData && !timeline.contains(SleepStage.unknown);
+  int get totalMinutes =>
+      deepMinutes + lightMinutes + remMinutes + awakeMinutes;
   int get sleepMinutes => deepMinutes + lightMinutes + remMinutes;
 
   String get durationStr {

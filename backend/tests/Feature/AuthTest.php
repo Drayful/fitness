@@ -22,6 +22,25 @@ class AuthTest extends TestCase
             'user' => ['id', 'name', 'email'],
             'token',
         ]);
+
+        $token = $res->json('token');
+        $this->assertNotEmpty($token);
+        $this->assertDatabaseHas('users', ['email' => 'test@example.com']);
+
+        $this->withToken($token)->getJson('/api/auth/me')
+            ->assertOk()
+            ->assertJsonPath('user.email', 'test@example.com');
+
+        $this->postJson('/api/auth/register', [
+            'name' => 'Duplicate',
+            'email' => 'test@example.com',
+            'password' => 'password123',
+        ])->assertUnprocessable()->assertJsonValidationErrors('email');
+
+        $login = $this->postJson('/api/auth/login', [
+            'email' => 'test@example.com',
+            'password' => 'password123',
+        ])->assertOk();
+        $this->assertNotEmpty($login->json('token'));
     }
 }
-

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../band/band_variant.dart';
 import '../../band/v8_band_service.dart';
 import '../../band/v8_protocol.dart';
 import '../theme.dart';
@@ -72,8 +73,10 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                     children: [
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: service.state == BandConnectionState.scanning ||
-                                  service.state == BandConnectionState.connecting
+                          onPressed:
+                              service.state == BandConnectionState.scanning ||
+                                  service.state ==
+                                      BandConnectionState.connecting
                               ? null
                               : () => service.startScan(),
                           icon: const Icon(Icons.bluetooth_searching),
@@ -123,7 +126,9 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                       child: Text(
                         'bpm',
                         style: t.textTheme.labelLarge?.copyWith(
-                          color: t.colorScheme.onSurface.withValues(alpha: 0.65),
+                          color: t.colorScheme.onSurface.withValues(
+                            alpha: 0.65,
+                          ),
                         ),
                       ),
                     ),
@@ -160,7 +165,19 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                           child: FilledButton.icon(
                             onPressed: service.isLiveHrActive
                                 ? null
-                                : () => service.startLiveHeartRate(),
+                                : () async {
+                                    try {
+                                      await service.startLiveHeartRate();
+                                    } catch (error) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(content: Text('$error')),
+                                        );
+                                      }
+                                    }
+                                  },
                             icon: const Icon(Icons.favorite),
                             label: const Text('Start live HR'),
                           ),
@@ -200,11 +217,51 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                     _InfoRow(label: 'MAC', value: service.deviceInfo!.mac),
                     _InfoRow(
                       label: 'Battery',
-                      value: service.deviceInfo!.isCharging
+                      value: service.deviceInfo!.batteryPercent == null
+                          ? '—'
+                          : service.deviceInfo!.isCharging
                           ? '${service.deviceInfo!.batteryPercent}% (charging)'
                           : '${service.deviceInfo!.batteryPercent}%',
                     ),
-                    _InfoRow(label: 'Firmware', value: service.deviceInfo!.firmware),
+                    _InfoRow(
+                      label: 'Firmware',
+                      value: service.deviceInfo!.firmware,
+                    ),
+                    _InfoRow(
+                      label: 'Protocol',
+                      value: service.variantConfirmed
+                          ? service.variant.label
+                          : '${service.variant.label} (assumed)',
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButton<BandVariant>(
+                      value: service.variantConfirmed ? service.variant : null,
+                      hint: const Text('Select device model'),
+                      items: BandVariant.values
+                          .map(
+                            (v) => DropdownMenuItem(
+                              value: v,
+                              child: Text(v.label),
+                            ),
+                          )
+                          .toList(),
+                      onChanged:
+                          service.isWorkoutActive || service.isSleepSyncing
+                          ? null
+                          : (value) async {
+                              try {
+                                await service.stopLiveHeartRate();
+                                service.overrideVariant(value);
+                                await service.startLiveHeartRate();
+                              } catch (error) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('$error')),
+                                  );
+                                }
+                              }
+                            },
+                    ),
                   ],
                 ),
               ),
@@ -219,7 +276,9 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                 child: ListTile(
                   leading: Icon(
                     Icons.watch,
-                    color: item.likelyBand ? c.accent : t.colorScheme.onSurface.withValues(alpha: 0.5),
+                    color: item.likelyBand
+                        ? c.accent
+                        : t.colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                   title: Text(item.name),
                   subtitle: Text(

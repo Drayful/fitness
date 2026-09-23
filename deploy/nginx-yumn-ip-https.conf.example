@@ -1,0 +1,28 @@
+# Install after the IP certificate exists. Check all existing port-443
+# default_server directives first. Exactly one 443 default_server is allowed.
+# IP clients may omit TLS SNI; this block must receive those connections.
+server {
+    listen 443 ssl default_server;
+    server_name 80.242.213.87;
+    root /var/www/ella_mobile/backend/public;
+    index index.php;
+
+    ssl_certificate /etc/letsencrypt/live/80.242.213.87/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/80.242.213.87/privkey.pem;
+
+    add_header X-Content-Type-Options nosniff always;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+    }
+
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}

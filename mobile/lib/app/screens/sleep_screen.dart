@@ -22,8 +22,11 @@ class _SleepScreenState extends State<SleepScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final band = BandServiceScope.of(context);
-      if (band.isConnected && !band.isSleepSyncing && band.sleepSummary == null) {
+      if (band.isConnected &&
+          !band.isSleepSyncing &&
+          band.sleepSummary == null) {
         band.syncSleepData();
       }
     });
@@ -56,10 +59,11 @@ class _SleepScreenState extends State<SleepScreen> {
         final syncing = band.isSleepSyncing;
 
         // Upload once when sleep data becomes available.
-        if (summary != null && summary.hasData && !_uploaded) {
+        if (summary != null && summary.hasValidatedStages && !_uploaded) {
           _uploaded = true;
-          WidgetsBinding.instance
-              .addPostFrameCallback((_) => _uploadSleep(summary));
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _uploadSleep(summary);
+          });
         }
 
         return Scaffold(
@@ -102,8 +106,22 @@ class _SleepScreenState extends State<SleepScreen> {
                 ),
             ],
           ),
-          body: (summary == null || !summary.hasData)
-              ? _EmptyState(syncing: syncing, connected: band.isConnected, l: l, c: c)
+          body: band.sleepSyncError != null
+              ? Center(child: Text(l.t('sleep_sync_error')))
+              : summary != null &&
+                    summary.hasData &&
+                    !summary.hasValidatedStages
+              ? Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(l.t('sleep_unverified')),
+                )
+              : (summary == null || !summary.hasData)
+              ? _EmptyState(
+                  syncing: syncing,
+                  connected: band.isConnected,
+                  l: l,
+                  c: c,
+                )
               : _SleepContent(summary: summary, l: l, c: c),
         );
       },
@@ -149,8 +167,8 @@ class _EmptyState extends StatelessWidget {
               syncing
                   ? l.t('syncing_sub')
                   : connected
-                      ? l.t('no_sleep_sub_connected')
-                      : l.t('no_sleep_sub'),
+                  ? l.t('no_sleep_sub_connected')
+                  : l.t('no_sleep_sub'),
               textAlign: TextAlign.center,
               style: TextStyle(color: c.subtext, fontSize: 14, height: 1.5),
             ),
@@ -281,10 +299,18 @@ class _SummaryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 if (summary.bedTime != null)
-                  _timeRow(Icons.bedtime_outlined, l.t('bedtime'), summary.bedTime!),
+                  _timeRow(
+                    Icons.bedtime_outlined,
+                    l.t('bedtime'),
+                    summary.bedTime!,
+                  ),
                 const SizedBox(height: 6),
                 if (summary.wakeTime != null)
-                  _timeRow(Icons.wb_sunny_outlined, l.t('wake_time'), summary.wakeTime!),
+                  _timeRow(
+                    Icons.wb_sunny_outlined,
+                    l.t('wake_time'),
+                    summary.wakeTime!,
+                  ),
               ],
             ),
           ),
@@ -318,7 +344,11 @@ class _SummaryCard extends StatelessWidget {
 // ─────────────────────────── Hypnogram Card ─────────────────────────────────
 
 class _HypnogramCard extends StatelessWidget {
-  const _HypnogramCard({required this.summary, required this.l, required this.c});
+  const _HypnogramCard({
+    required this.summary,
+    required this.l,
+    required this.c,
+  });
 
   final SleepSummary summary;
   final AppLocalizations l;
@@ -400,11 +430,12 @@ class _HypnogramCard extends StatelessWidget {
 }
 
 Color _stageColor(SleepStage stage) => switch (stage) {
-      SleepStage.deep => const Color(0xFF4A6CF7),
-      SleepStage.light => const Color(0xFF9B8CFF),
-      SleepStage.rem => const Color(0xFF36E0FF),
-      SleepStage.awake => const Color(0xFF475569),
-    };
+  SleepStage.deep => const Color(0xFF4A6CF7),
+  SleepStage.light => const Color(0xFF9B8CFF),
+  SleepStage.rem => const Color(0xFF36E0FF),
+  SleepStage.awake => const Color(0xFF475569),
+  SleepStage.unknown => const Color(0xFF475569),
+};
 
 class _TimeLabels extends StatelessWidget {
   const _TimeLabels({required this.summary, required this.subtext});
@@ -426,26 +457,34 @@ class _TimeLabels extends StatelessWidget {
       final frac = i / labelCount;
       final minuteOffset = (frac * total).round();
       final t = bed.add(Duration(minutes: minuteOffset));
-      labels.add('${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}');
+      labels.add(
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
+      );
       positions.add(frac);
     }
 
-    return LayoutBuilder(builder: (context, constraints) {
-      return SizedBox(
-        height: 14,
-        child: Stack(
-          children: List.generate(labels.length, (i) {
-            return Positioned(
-              left: positions[i] * constraints.maxWidth - 16,
-              child: Text(
-                labels[i],
-                style: TextStyle(color: subtext, fontSize: 9, fontWeight: FontWeight.w600),
-              ),
-            );
-          }),
-        ),
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(
+          height: 14,
+          child: Stack(
+            children: List.generate(labels.length, (i) {
+              return Positioned(
+                left: positions[i] * constraints.maxWidth - 16,
+                child: Text(
+                  labels[i],
+                  style: TextStyle(
+                    color: subtext,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -455,11 +494,12 @@ class _HypnogramPainter extends CustomPainter {
   final List<SleepStage> timeline;
 
   double _stageY(SleepStage stage, double height) => switch (stage) {
-        SleepStage.awake => 0.0,
-        SleepStage.rem => height * 0.33,
-        SleepStage.light => height * 0.66,
-        SleepStage.deep => height,
-      };
+    SleepStage.awake => 0.0,
+    SleepStage.unknown => 0.0,
+    SleepStage.rem => height * 0.33,
+    SleepStage.light => height * 0.66,
+    SleepStage.deep => height,
+  };
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -530,7 +570,11 @@ class _HypnogramPainter extends CustomPainter {
 // ─────────────────────────── Breakdown Card ─────────────────────────────────
 
 class _BreakdownCard extends StatelessWidget {
-  const _BreakdownCard({required this.summary, required this.l, required this.c});
+  const _BreakdownCard({
+    required this.summary,
+    required this.l,
+    required this.c,
+  });
 
   final SleepSummary summary;
   final AppLocalizations l;
@@ -702,7 +746,11 @@ class _StatsRow extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value, required this.color});
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   final String label;
   final String value;

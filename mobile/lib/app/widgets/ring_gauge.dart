@@ -37,12 +37,14 @@ class RingGauge extends StatelessWidget {
             size: Size.square(size),
             painter: _RingPainter(
               pct: pct,
-              colors: colors.length >= 2 ? colors : [colors.first, colors.first],
+              colors: colors.length >= 2
+                  ? colors
+                  : [colors.first, colors.first],
               strokeWidth: strokeWidth,
               trackColor: trackColor,
             ),
           ),
-          if (center != null) center!,
+          ?center,
         ],
       ),
     );

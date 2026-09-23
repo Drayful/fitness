@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
-import '../models/today.dart';
+import '../../api/session_controller.dart';
 import '../theme.dart';
 import '../widgets/metric_tile.dart';
 import '../widgets/ring_gauge.dart';
@@ -21,16 +21,22 @@ class DashboardScreen extends StatelessWidget {
         final l = AppLocalizations.of(context);
         final t = Theme.of(context);
         final c = context.appColors;
-        final today = mockToday();
-        final recColors = _recoveryColors(c, today.recoveryPct);
+        final session = SessionScope.of(context);
+        final recColors = [c.subtext, c.subtext];
         final sleep = band.sleepSummary;
-        final sleepPct = sleep != null && sleep.hasData ? sleep.score : today.sleepPct;
-        final sleepDurStr = sleep != null && sleep.hasData ? sleep.durationStr : l.t('sleep_dur');
+        final sleepPct = sleep != null && sleep.hasValidatedStages
+            ? sleep.score
+            : null;
+        final sleepDurStr = sleep != null && sleep.hasValidatedStages
+            ? sleep.durationStr
+            : l.t('data_unavailable');
         final vitals = band.liveVitals;
         final connected = band.isConnected;
         final battery = band.deviceInfo?.batteryPercent;
 
-        final stepsStr = vitals != null ? _formatSteps(vitals.steps) : '--';
+        final stepsStr = vitals != null
+            ? MaterialLocalizations.of(context).formatDecimal(vitals.steps)
+            : '--';
         final hrStr = vitals?.heartRate != null ? '${vitals!.heartRate}' : '--';
         final spo2Str = vitals?.spo2 != null ? '${vitals!.spo2}' : '--';
         final tempStr = vitals?.temperatureC != null
@@ -49,15 +55,20 @@ class DashboardScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        l.t('date'),
+                        MaterialLocalizations.of(
+                          context,
+                        ).formatMediumDate(DateTime.now()),
                         style: TextStyle(
-                            color: c.subtext,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600),
+                          color: c.subtext,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 2),
-                      Text(l.t('greeting'),
-                          style: t.textTheme.titleLarge?.copyWith(fontSize: 23)),
+                      Text(
+                        session.userName ?? l.t('nav_today'),
+                        style: t.textTheme.titleLarge?.copyWith(fontSize: 23),
+                      ),
                     ],
                   ),
                 ),
@@ -75,7 +86,11 @@ class DashboardScreen extends StatelessWidget {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      Icon(Icons.notifications_none, size: 20, color: c.subtext),
+                      Icon(
+                        Icons.notifications_none,
+                        size: 20,
+                        color: c.subtext,
+                      ),
                       Positioned(
                         top: 9,
                         right: 10,
@@ -86,7 +101,9 @@ class DashboardScreen extends StatelessWidget {
                             shape: BoxShape.circle,
                             color: c.accent,
                             border: Border.all(
-                                color: const Color(0xFF121A25), width: 2),
+                              color: const Color(0xFF121A25),
+                              width: 2,
+                            ),
                           ),
                         ),
                       ),
@@ -112,7 +129,7 @@ class DashboardScreen extends StatelessWidget {
               child: Row(
                 children: [
                   RingGauge(
-                    value: today.recoveryPct.toDouble(),
+                    value: 0,
                     max: 100,
                     colors: recColors,
                     size: 138,
@@ -121,31 +138,36 @@ class DashboardScreen extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text.rich(
-                          TextSpan(children: [
-                            TextSpan(
-                              text: '${today.recoveryPct}',
-                              style: GoogleFonts.spaceGrotesk(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: '—',
+                                style: GoogleFonts.spaceGrotesk(
                                   fontSize: 36,
                                   fontWeight: FontWeight.w700,
-                                  color: const Color(0xFFF2F6FF)),
-                            ),
-                            TextSpan(
-                              text: '%',
-                              style: GoogleFonts.spaceGrotesk(
+                                  color: const Color(0xFFF2F6FF),
+                                ),
+                              ),
+                              TextSpan(
+                                text: '',
+                                style: GoogleFonts.spaceGrotesk(
                                   fontSize: 17,
                                   fontWeight: FontWeight.w700,
-                                  color: c.subtext),
-                            ),
-                          ]),
+                                  color: c.subtext,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          l.t('ready'),
+                          l.t('data_unavailable'),
                           style: TextStyle(
-                              color: recColors.first,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.6),
+                            color: recColors.first,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.6,
+                          ),
                         ),
                       ],
                     ),
@@ -155,31 +177,42 @@ class DashboardScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(l.t('recovery'),
-                            style: TextStyle(
-                                color: c.subtext,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.2)),
+                        Text(
+                          l.t('recovery'),
+                          style: TextStyle(
+                            color: c.subtext,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
                         const SizedBox(height: 9),
-                        Text(l.t('recovery_msg'),
-                            style: const TextStyle(
-                                color: Color(0xFFC3CEE0),
-                                fontSize: 13.5,
-                                height: 1.35)),
+                        Text(
+                          l.t('scores_pending'),
+                          style: const TextStyle(
+                            color: Color(0xFFC3CEE0),
+                            fontSize: 13.5,
+                            height: 1.35,
+                          ),
+                        ),
                         const SizedBox(height: 10),
                         Container(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(999),
                             color: c.accent.withValues(alpha: 0.12),
                           ),
-                          child: Text(l.t('vs_yesterday'),
-                              style: TextStyle(
-                                  color: c.accent,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700)),
+                          child: Text(
+                            l.t('data_unavailable'),
+                            style: TextStyle(
+                              color: c.accent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -191,16 +224,16 @@ class DashboardScreen extends StatelessWidget {
 
             // Strain + Sleep ring cards
             Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: _MiniRingCard(
                     label: l.t('strain'),
-                    line1: l.t('moderate'),
+                    line1: l.t('data_unavailable'),
                     line2: l.t('of_strain'),
-                    value: today.strain,
-                    max: today.strainMax,
-                    valueText: today.strain.toStringAsFixed(1),
+                    value: 0,
+                    max: 21,
+                    valueText: '—',
                     colors: [c.warn, c.warnEnd],
                   ),
                 ),
@@ -208,15 +241,19 @@ class DashboardScreen extends StatelessWidget {
                 Expanded(
                   child: GestureDetector(
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => const SleepScreen()),
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SleepScreen(),
+                      ),
                     ),
                     child: _MiniRingCard(
                       label: l.t('sleep'),
                       line1: sleepDurStr,
-                      line2: band.isSleepSyncing ? l.t('syncing') : l.t('great'),
-                      value: sleepPct.toDouble(),
+                      line2: band.isSleepSyncing
+                          ? l.t('syncing')
+                          : l.t('data_unavailable'),
+                      value: sleepPct?.toDouble() ?? 0,
                       max: 100,
-                      valueText: '$sleepPct',
+                      valueText: sleepPct?.toString() ?? '—',
                       colors: [c.sleep, c.sleepEnd],
                     ),
                   ),
@@ -226,7 +263,12 @@ class DashboardScreen extends StatelessWidget {
             const SizedBox(height: 13),
 
             // Live metrics header
-            _LiveHeader(connected: connected, live: band.isLiveHrActive, l: l, c: c),
+            _LiveHeader(
+              connected: connected,
+              live: band.isLiveHrActive,
+              l: l,
+              c: c,
+            ),
             const SizedBox(height: 10),
 
             // Live metric tiles — row 1: Steps | Heart Rate | SpO2
@@ -280,8 +322,7 @@ class DashboardScreen extends StatelessWidget {
                 Expanded(
                   child: MetricTile(
                     label: l.t('hrv'),
-                    value: '${today.hrvMs}',
-                    unit: l.t('ms'),
+                    value: '—',
                     icon: Icons.monitor_heart_outlined,
                     color: c.accent2,
                   ),
@@ -310,22 +351,6 @@ class DashboardScreen extends StatelessWidget {
         );
       },
     );
-  }
-
-  static List<Color> _recoveryColors(AppColors c, int pct) {
-    if (pct >= 67) return [c.accent, c.accent2];
-    if (pct >= 34) return [c.warn, c.warnEnd];
-    return [c.danger, c.warnEnd];
-  }
-
-  static String _formatSteps(int n) {
-    final s = n.toString();
-    final buf = StringBuffer();
-    for (var i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
-      buf.write(s[i]);
-    }
-    return buf.toString();
   }
 }
 
@@ -515,24 +540,32 @@ class _MiniRingCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(label,
-                    style: TextStyle(
-                        color: c.subtext,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: c.subtext,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                  ),
+                ),
                 const SizedBox(height: 3),
-                Text(line1,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Color(0xFFDBE3F0),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600)),
-                Text(line2,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: c.subtext, fontSize: 11)),
+                Text(
+                  line1,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFFDBE3F0),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  line2,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: c.subtext, fontSize: 11),
+                ),
               ],
             ),
           ),

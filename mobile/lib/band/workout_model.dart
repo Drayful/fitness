@@ -23,50 +23,50 @@ enum ExerciseType {
   const ExerciseType(this.bandCode);
   final int bandCode;
 
-  static ExerciseType fromBandCode(int code) =>
-      ExerciseType.values.firstWhere((e) => e.bandCode == code,
-          orElse: () => ExerciseType.run);
+  static ExerciseType fromBandCode(int code) => ExerciseType.values.firstWhere(
+    (e) => e.bandCode == code,
+    orElse: () => ExerciseType.run,
+  );
 
   IconData get icon => switch (this) {
-        ExerciseType.run => Icons.directions_run,
-        ExerciseType.cycling => Icons.directions_bike,
-        ExerciseType.walk => Icons.directions_walk,
-        ExerciseType.workout => Icons.fitness_center,
-        ExerciseType.yoga => Icons.self_improvement,
-        ExerciseType.meditation => Icons.spa,
-        ExerciseType.basketball => Icons.sports_basketball,
-        ExerciseType.hiking => Icons.terrain,
-        ExerciseType.dance => Icons.music_note,
-        ExerciseType.badminton || ExerciseType.tennis => Icons.sports_tennis,
-        ExerciseType.football => Icons.sports_soccer,
-        ExerciseType.pingPong => Icons.sports_tennis,
-        ExerciseType.ropeJump => Icons.loop,
-        ExerciseType.sitUps => Icons.accessibility_new,
-        ExerciseType.volleyball => Icons.sports_volleyball,
-        ExerciseType.aerobics => Icons.directions_run,
-        _ => Icons.sports,
-      };
+    ExerciseType.run => Icons.directions_run,
+    ExerciseType.cycling => Icons.directions_bike,
+    ExerciseType.walk => Icons.directions_walk,
+    ExerciseType.workout => Icons.fitness_center,
+    ExerciseType.yoga => Icons.self_improvement,
+    ExerciseType.meditation => Icons.spa,
+    ExerciseType.basketball => Icons.sports_basketball,
+    ExerciseType.hiking => Icons.terrain,
+    ExerciseType.dance => Icons.music_note,
+    ExerciseType.badminton || ExerciseType.tennis => Icons.sports_tennis,
+    ExerciseType.football => Icons.sports_soccer,
+    ExerciseType.pingPong => Icons.sports_tennis,
+    ExerciseType.ropeJump => Icons.loop,
+    ExerciseType.sitUps => Icons.accessibility_new,
+    ExerciseType.volleyball => Icons.sports_volleyball,
+    ExerciseType.aerobics => Icons.directions_run,
+    _ => Icons.sports,
+  };
 
   Color get accentColor => switch (this) {
-        ExerciseType.run => const Color(0xFF4ADE80),
-        ExerciseType.cycling => const Color(0xFF36E0FF),
-        ExerciseType.walk => const Color(0xFF8AA6FF),
-        ExerciseType.workout => const Color(0xFFFFB23E),
-        ExerciseType.yoga || ExerciseType.meditation => const Color(0xFF9B8CFF),
-        ExerciseType.hiking => const Color(0xFF4ADE80),
-        ExerciseType.basketball => const Color(0xFFFF7A59),
-        ExerciseType.dance => const Color(0xFFFF5F9E),
-        _ => const Color(0xFF36E0FF),
-      };
+    ExerciseType.run => const Color(0xFF4ADE80),
+    ExerciseType.cycling => const Color(0xFF36E0FF),
+    ExerciseType.walk => const Color(0xFF8AA6FF),
+    ExerciseType.workout => const Color(0xFFFFB23E),
+    ExerciseType.yoga || ExerciseType.meditation => const Color(0xFF9B8CFF),
+    ExerciseType.hiking => const Color(0xFF4ADE80),
+    ExerciseType.basketball => const Color(0xFFFF7A59),
+    ExerciseType.dance => const Color(0xFFFF5F9E),
+    _ => const Color(0xFF36E0FF),
+  };
 
   bool get showDistance => switch (this) {
-        ExerciseType.run ||
-        ExerciseType.cycling ||
-        ExerciseType.walk ||
-        ExerciseType.hiking =>
-          true,
-        _ => false,
-      };
+    ExerciseType.run ||
+    ExerciseType.cycling ||
+    ExerciseType.walk ||
+    ExerciseType.hiking => true,
+    _ => false,
+  };
 }
 
 class WorkoutLive {
@@ -136,16 +136,15 @@ class WorkoutSummary {
     ExerciseType type,
     DateTime startTime,
     WorkoutLive live,
-  ) =>
-      WorkoutSummary(
-        type: type,
-        startTime: startTime,
-        heartRate: live.heartRate,
-        steps: live.steps,
-        calories: live.calories,
-        durationSeconds: live.durationSeconds,
-        distanceM: live.distanceM,
-      );
+  ) => WorkoutSummary(
+    type: type,
+    startTime: startTime,
+    heartRate: live.heartRate,
+    steps: live.steps,
+    calories: live.calories,
+    durationSeconds: live.durationSeconds,
+    distanceM: live.distanceM,
+  );
 
   final ExerciseType type;
   final DateTime startTime;
@@ -156,10 +155,10 @@ class WorkoutSummary {
   final double distanceM;
 
   WorkoutLive get asLive => WorkoutLive(
-        heartRate: heartRate,
-        steps: steps,
-        calories: calories,
-        durationSeconds: durationSeconds,
-        distanceM: distanceM,
-      );
+    heartRate: heartRate,
+    steps: steps,
+    calories: calories,
+    durationSeconds: durationSeconds,
+    distanceM: distanceM,
+  );
 }

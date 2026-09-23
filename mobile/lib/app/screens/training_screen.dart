@@ -22,65 +22,13 @@ class TrainingScreen extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
           children: [
-            Text(l.t('training'),
-                style: GoogleFonts.spaceGrotesk(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF2F6FF),
-                    letterSpacing: -0.5)),
-            const SizedBox(height: 16),
-
-            // Recommended session card
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFF1F5A44)),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF0F3A2C), Color(0xFF0E1822)],
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l.t('recommended_today'),
-                      style: TextStyle(
-                          color: c.accent,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1)),
-                  const SizedBox(height: 7),
-                  Text(l.t('tempo_run'),
-                      style: GoogleFonts.spaceGrotesk(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFFF2F6FF))),
-                  const SizedBox(height: 5),
-                  Text(l.t('tempo_msg'),
-                      style: const TextStyle(
-                          color: Color(0xFFBFE9D6), fontSize: 13, height: 1.4)),
-                  const SizedBox(height: 14),
-                  FilledButton.icon(
-                    onPressed: band.isConnected
-                        ? () => _startWorkout(context, ExerciseType.run)
-                        : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: c.accent,
-                      disabledBackgroundColor: c.accent.withValues(alpha: 0.3),
-                      foregroundColor: const Color(0xFF06120C),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(13)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 12),
-                    ),
-                    icon: const Icon(Icons.play_arrow, size: 18),
-                    label: Text(l.t('start_session'),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 14)),
-                  ),
-                ],
+            Text(
+              l.t('training'),
+              style: GoogleFonts.spaceGrotesk(
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFF2F6FF),
+                letterSpacing: -0.5,
               ),
             ),
             const SizedBox(height: 16),
@@ -140,23 +88,20 @@ class TrainingScreen extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Recent workouts — real data if available, mock otherwise
+            // Only recorded workouts are shown.
             _sectionLabel(c, l.t('recent')),
             const SizedBox(height: 11),
             if (band.workoutHistory.isNotEmpty)
-              ...band.workoutHistory.take(5).map(
+              ...band.workoutHistory
+                  .take(5)
+                  .map(
                     (w) => Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _WorkoutHistoryRow(summary: w, c: c, l: l),
                     ),
                   )
-            else ...[
-              _recentRow(c, Icons.directions_run, l.t('morning_run'),
-                  l.t('run_meta'), l.t('yest'), c.accent),
-              const SizedBox(height: 10),
-              _recentRow(c, Icons.fitness_center, l.t('upper_body'),
-                  l.t('upper_meta'), l.t('mon'), c.warn),
-            ],
+            else
+              Text(l.t('no_workouts'), style: TextStyle(color: c.subtext)),
           ],
         );
       },
@@ -172,15 +117,23 @@ class TrainingScreen extends StatelessWidget {
     );
   }
 
-  Widget _sectionLabel(AppColors c, String text) => Text(text,
-      style: TextStyle(
-          color: c.subtext,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8));
+  Widget _sectionLabel(AppColors c, String text) => Text(
+    text,
+    style: TextStyle(
+      color: c.subtext,
+      fontSize: 11,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.8,
+    ),
+  );
 
-  Widget _quickTile(AppColors c, IconData icon, String label, Color color,
-      VoidCallback? onTap) {
+  Widget _quickTile(
+    AppColors c,
+    IconData icon,
+    String label,
+    Color color,
+    VoidCallback? onTap,
+  ) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -200,60 +153,19 @@ class TrainingScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 7),
-              Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: Color(0xFF9FB0CC),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600)),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF9FB0CC),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _recentRow(AppColors c, IconData icon, String title, String meta,
-      String when, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: const Color(0xFF101924),
-        border: Border.all(color: const Color(0xFF1C2838)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(13),
-              color: color.withValues(alpha: 0.12),
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        color: Color(0xFFEEF3FB),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(meta, style: TextStyle(color: c.subtext, fontSize: 12)),
-              ],
-            ),
-          ),
-          Text(when,
-              style: GoogleFonts.spaceGrotesk(
-                  color: color, fontSize: 13, fontWeight: FontWeight.w700)),
-        ],
       ),
     );
   }
@@ -276,8 +188,7 @@ class _WorkoutHistoryRow extends StatelessWidget {
     final color = summary.type.accentColor;
     final metaParts = <String>[live.durationStr];
     if (summary.type.showDistance && live.distanceM >= 10) {
-      metaParts.add(
-          '${live.distanceValueStr} ${live.distanceUnit}');
+      metaParts.add('${live.distanceValueStr} ${live.distanceUnit}');
     }
     if (live.calories > 0) {
       metaParts.add('${live.caloriesStr} ${l.t('kcal')}');
@@ -292,7 +203,8 @@ class _WorkoutHistoryRow extends StatelessWidget {
     } else if (diff.inHours < 24) {
       when = '${diff.inHours}h';
     } else {
-      when = l.t('yest');
+      when =
+          '${summary.startTime.day.toString().padLeft(2, '0')}.${summary.startTime.month.toString().padLeft(2, '0')}.${summary.startTime.year}';
     }
 
     return Container(
@@ -322,18 +234,24 @@ class _WorkoutHistoryRow extends StatelessWidget {
                 Text(
                   _typeName(summary.type, l),
                   style: const TextStyle(
-                      color: Color(0xFFEEF3FB),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700),
+                    color: Color(0xFFEEF3FB),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(meta, style: TextStyle(color: c.subtext, fontSize: 12)),
               ],
             ),
           ),
-          Text(when,
-              style: GoogleFonts.spaceGrotesk(
-                  color: color, fontSize: 13, fontWeight: FontWeight.w700)),
+          Text(
+            when,
+            style: GoogleFonts.spaceGrotesk(
+              color: color,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
@@ -374,9 +292,11 @@ class _ConnectHint extends StatelessWidget {
         children: [
           Icon(Icons.watch_outlined, color: c.subtext, size: 18),
           const SizedBox(width: 10),
-          Text(
-            l.t('workout_connect_hint'),
-            style: TextStyle(color: c.subtext, fontSize: 12),
+          Expanded(
+            child: Text(
+              l.t('workout_connect_hint'),
+              style: TextStyle(color: c.subtext, fontSize: 12),
+            ),
           ),
         ],
       ),

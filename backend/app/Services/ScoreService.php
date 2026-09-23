@@ -20,6 +20,9 @@ class ScoreService
             'date' => $today->toDateString(),
             'strain' => $strain,
             'recovery' => $recovery,
+            'algorithm_version' => 'prototype-v1',
+            'validated' => false,
+            'status' => $recovery === null ? 'insufficient_data' : 'provisional',
         ];
     }
 
@@ -40,14 +43,18 @@ class ScoreService
         return (float) $strain;
     }
 
-    private function calculateRecoveryForDate(User $user, CarbonImmutable $date, float $todayStrain): int
+    private function calculateRecoveryForDate(User $user, CarbonImmutable $date, float $todayStrain): ?int
     {
         $metric = DailyMetric::query()
             ->where('user_id', $user->id)
             ->whereDate('date', $date->toDateString())
             ->first();
 
-        $sleepHours = (float) ($metric?->sleep_hours ?? 0);
+        if ($metric === null) {
+            return null;
+        }
+
+        $sleepHours = (float) $metric->sleep_hours;
         $sleepQuality = (float) ($metric?->sleep_quality ?? 0.5);
 
         $sleepQuality = max(0.0, min(1.0, $sleepQuality));
@@ -64,4 +71,3 @@ class ScoreService
         return max(0, min(100, $recovery));
     }
 }
-

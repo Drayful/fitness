@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +16,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class DailyMetric extends Model
 {
     public $timestamps = true;
+
+    public function setDateAttribute($value): void
+    {
+        // Store a calendar date, including on SQLite where DATE has no type
+        // coercion. Otherwise updateOrCreate cannot find its previous insert.
+        $this->attributes['date'] = CarbonImmutable::parse($value)->toDateString();
+    }
 
     protected function casts(): array
     {
@@ -30,4 +38,3 @@ class DailyMetric extends Model
         return $this->belongsTo(User::class);
     }
 }
-

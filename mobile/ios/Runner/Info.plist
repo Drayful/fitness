@@ -2,6 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -51,19 +52,6 @@
 	<string>The app needs Bluetooth to connect to your fitness bracelet.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>The app needs Bluetooth to connect to your fitness bracelet.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Location access helps discover nearby Bluetooth devices on some Android phones.</string>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>185.2.227.187</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-			</dict>
-		</dict>
-	</dict>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-central</string>

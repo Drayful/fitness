@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'duration_minutes',
     'intensity',
     'notes',
+    'client_id',
+    'metrics',
 ])]
 class Workout extends Model
 {
@@ -22,6 +24,7 @@ class Workout extends Model
             'performed_at' => 'datetime',
             'duration_minutes' => 'integer',
             'intensity' => 'integer',
+            'metrics' => 'array',
         ];
     }
 
@@ -30,4 +33,3 @@ class Workout extends Model
         return $this->belongsTo(User::class);
     }
 }
-

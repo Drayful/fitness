@@ -1,13 +1,13 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 import 'package:http/http.dart' as http;
 
-/// Base URL of the fitness backend API.
-///
-/// The server sits behind an nginx reverse-proxy on port 80 reachable at the
-/// machine's public IP. Port 8000 is blocked upstream by the provider, so we
-/// go through nginx. Change this single constant if the server moves.
-const String kApiBaseUrl = 'http://185.2.227.187';
+/// Configure the API at build time. Release builds require HTTPS.
+const String kApiBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'https://80.242.213.87',
+);
 
 /// Thrown for any non-2xx response or transport failure. [message] is safe to
 /// show to the user; [fieldErrors] carries Laravel validation messages keyed
@@ -27,8 +27,8 @@ class ApiException implements Exception {
 /// memory; persistence is handled by [SessionController].
 class ApiClient {
   ApiClient({http.Client? client, String baseUrl = kApiBaseUrl})
-      : _client = client ?? http.Client(),
-        _baseUrl = baseUrl;
+    : _client = client ?? http.Client(),
+      _baseUrl = baseUrl;
 
   final http.Client _client;
   final String _baseUrl;
@@ -38,32 +38,62 @@ class ApiClient {
   static const _timeout = Duration(seconds: 20);
 
   Map<String, String> get _headers => {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      };
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    if (token != null) 'Authorization': 'Bearer $token',
+  };
 
   Future<Map<String, dynamic>> _send(
     String method,
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    final uri = Uri.parse('$_baseUrl$path');
+    final base = Uri.tryParse(_baseUrl);
+    if (base == null ||
+        !base.hasAuthority ||
+        !['https', 'http'].contains(base.scheme)) {
+      throw ApiException('Не настроен адрес API. Укажите API_BASE_URL.');
+    }
+    if (base.scheme != 'https' &&
+        (kReleaseMode || !const bool.fromEnvironment('ALLOW_INSECURE_API'))) {
+      throw ApiException('Для подключения к серверу требуется HTTPS.');
+    }
+    final uri = Uri.parse('${_baseUrl.replaceAll(RegExp(r'/+$'), '')}$path');
     late http.Response res;
     try {
       final req = http.Request(method, uri)..headers.addAll(_headers);
       if (body != null) req.body = jsonEncode(body);
-      final streamed = await _client.send(req).timeout(_timeout);
-      res = await http.Response.fromStream(streamed);
+      res = await (() async {
+        final streamed = await _client.send(req);
+        return http.Response.fromStream(streamed);
+      })().timeout(_timeout);
     } catch (e) {
       throw ApiException('Нет связи с сервером. Проверьте интернет.');
     }
 
-    final isJson =
-        (res.headers['content-type'] ?? '').contains('application/json');
-    final decoded = isJson && res.body.isNotEmpty
-        ? jsonDecode(res.body) as Map<String, dynamic>
-        : <String, dynamic>{};
+    final isJson = (res.headers['content-type'] ?? '').contains(
+      'application/json',
+    );
+    Map<String, dynamic> decoded = {};
+    if (isJson && res.body.isNotEmpty) {
+      try {
+        final value = jsonDecode(res.body);
+        if (value is! Map<String, dynamic>) throw const FormatException();
+        decoded = value;
+      } on FormatException {
+        throw ApiException(
+          'Сервер вернул некорректный ответ.',
+          statusCode: res.statusCode,
+        );
+      }
+    } else if (res.statusCode >= 200 &&
+        res.statusCode < 300 &&
+        res.statusCode != 204) {
+      throw ApiException(
+        'Сервер вернул некорректный ответ.',
+        statusCode: res.statusCode,
+      );
+    }
 
     if (res.statusCode >= 200 && res.statusCode < 300) {
       return decoded;
@@ -75,24 +105,28 @@ class ApiClient {
       fieldErrors = (decoded['errors'] as Map).map(
         (k, v) => MapEntry(
           k.toString(),
-          (v as List).map((e) => e.toString()).toList(),
+          v is List ? v.map((e) => e.toString()).toList() : [v.toString()],
         ),
       );
     }
-    final message = (decoded['message'] as String?) ??
+    final message =
+        (decoded['message'] is String ? decoded['message'] as String : null) ??
         _statusMessage(res.statusCode);
-    throw ApiException(message,
-        statusCode: res.statusCode, fieldErrors: fieldErrors);
+    throw ApiException(
+      message,
+      statusCode: res.statusCode,
+      fieldErrors: fieldErrors,
+    );
   }
 
   String _statusMessage(int code) => switch (code) {
-        401 => 'Требуется вход в аккаунт.',
-        403 => 'Доступ запрещён.',
-        404 => 'Не найдено.',
-        422 => 'Проверьте введённые данные.',
-        >= 500 => 'Ошибка сервера. Попробуйте позже.',
-        _ => 'Ошибка запроса ($code).',
-      };
+    401 => 'Требуется вход в аккаунт.',
+    403 => 'Доступ запрещён.',
+    404 => 'Не найдено.',
+    422 => 'Проверьте введённые данные.',
+    >= 500 => 'Ошибка сервера. Попробуйте позже.',
+    _ => 'Ошибка запроса ($code).',
+  };
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -100,16 +134,20 @@ class ApiClient {
     required String name,
     required String email,
     required String password,
-  }) =>
-      _send('POST', '/api/auth/register',
-          body: {'name': name, 'email': email, 'password': password});
+  }) => _send(
+    'POST',
+    '/api/auth/register',
+    body: {'name': name, 'email': email, 'password': password},
+  );
 
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
-  }) =>
-      _send('POST', '/api/auth/login',
-          body: {'email': email, 'password': password});
+  }) => _send(
+    'POST',
+    '/api/auth/login',
+    body: {'email': email, 'password': password},
+  );
 
   Future<void> logout() => _send('POST', '/api/auth/logout');
 
@@ -123,27 +161,37 @@ class ApiClient {
     required int durationMinutes,
     required int intensity,
     String? notes,
-  }) =>
-      _send('POST', '/api/workouts', body: {
-        'performed_at': performedAt.toUtc().toIso8601String(),
-        'type': type,
-        'duration_minutes': durationMinutes,
-        'intensity': intensity,
-        'notes': ?notes,
-      });
+    String? clientId,
+    Map<String, dynamic>? metrics,
+  }) => _send(
+    'POST',
+    '/api/workouts',
+    body: {
+      'performed_at': performedAt.toUtc().toIso8601String(),
+      'type': type,
+      'duration_minutes': durationMinutes,
+      'intensity': intensity,
+      'notes': ?notes,
+      'client_id': ?clientId,
+      'metrics': ?metrics,
+    },
+  );
 
   Future<Map<String, dynamic>> sleepCheckin({
     DateTime? date,
     required double sleepHours,
     double? sleepQuality,
-  }) =>
-      _send('POST', '/api/checkins/sleep', body: {
-        if (date != null)
-          'date':
-              '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
-        'sleep_hours': sleepHours,
-        'sleep_quality': ?sleepQuality,
-      });
+  }) => _send(
+    'POST',
+    '/api/checkins/sleep',
+    body: {
+      if (date != null)
+        'date':
+            '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
+      'sleep_hours': sleepHours,
+      'sleep_quality': ?sleepQuality,
+    },
+  );
 
   Future<Map<String, dynamic>> todayScores() =>
       _send('GET', '/api/scores/today');
