@@ -196,5 +196,45 @@ class ApiClient {
   Future<Map<String, dynamic>> todayScores() =>
       _send('GET', '/api/scores/today');
 
+  Future<Map<String, dynamic>> storeHeartRate({
+    required String clientId,
+    required DateTime measuredAt,
+    required int bpm,
+  }) => _send(
+    'POST',
+    '/api/measurements/heart-rate',
+    body: {
+      'client_id': clientId,
+      'measured_at': measuredAt.toUtc().toIso8601String(),
+      'bpm': bpm,
+    },
+  );
+
+  Future<Map<String, dynamic>> recentHeartRate() =>
+      _send('GET', '/api/measurements/heart-rate/recent');
+
+  Future<Map<String, dynamic>> storeSleepObservation({
+    required String clientId,
+    required DateTime startedAt,
+    required DateTime endedAt,
+    required int observedMinutes,
+    required bool stagesValidated,
+  }) => _send(
+    'POST',
+    '/api/measurements/sleep',
+    body: {
+      'client_id': clientId,
+      'started_at': startedAt.toUtc().toIso8601String(),
+      'ended_at': endedAt.toUtc().toIso8601String(),
+      'observed_minutes': observedMinutes,
+      'stages_validated': stagesValidated,
+    },
+  );
+
+  Future<Map<String, dynamic>> recentSleep() =>
+      _send('GET', '/api/measurements/sleep/recent');
+
+  Future<Map<String, dynamic>> workouts() => _send('GET', '/api/workouts');
+
   void dispose() => _client.close();
 }

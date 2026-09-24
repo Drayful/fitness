@@ -304,6 +304,15 @@ class DashboardScreen extends StatelessWidget {
                 ),
               ],
             ),
+            if (session.averageHeartRate != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '${l.t('avg_last_10_hr')}: '
+                '${session.averageHeartRate!.toStringAsFixed(1)}'
+                '${l.t('bpm')} (${session.heartRateSampleCount}/10)',
+                style: TextStyle(color: c.subtext, fontSize: 12),
+              ),
+            ],
             const SizedBox(height: 10),
 
             // Live metric tiles — row 2: Temperature | HRV | Battery

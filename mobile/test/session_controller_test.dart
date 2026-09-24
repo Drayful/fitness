@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:fitness_app/api/api_client.dart';
 import 'package:fitness_app/api/session_controller.dart';
 import 'package:fitness_app/band/workout_model.dart';
+import 'package:fitness_app/band/sleep_model.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -74,7 +75,7 @@ void main() {
       api: ApiClient(
         baseUrl: 'https://example.test',
         client: MockClient((req) async {
-          requests++;
+          if (req.method == 'POST') requests++;
           return http.Response(
             '{}',
             200,
@@ -86,6 +87,63 @@ void main() {
     await session.load();
     await session.retryPendingWorkouts();
     expect(requests, 0);
+    session.dispose();
+  });
+
+  test('heart rate and unverified sleep are queued then uploaded', () async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({
+      'auth_token': 'token-measurements',
+      'auth_user_email': 'measurements@example.com',
+    });
+    var online = false;
+    final posted = <String>[];
+    final session = SessionController(
+      api: ApiClient(
+        baseUrl: 'https://example.test',
+        client: MockClient((req) async {
+          if (req.method == 'GET') {
+            final body = req.url.path.endsWith('/heart-rate/recent')
+                ? '{"average_bpm":72.5,"count":2,"samples":[]}'
+                : req.url.path.endsWith('/sleep/recent')
+                ? '{"observations":[]}'
+                : '{"data":[]}';
+            return http.Response(
+              body,
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          posted.add(req.url.path);
+          return http.Response(
+            online ? '{}' : '{"message":"offline"}',
+            online ? 201 : 503,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      ),
+    );
+    await session.load();
+    await expectLater(
+      session.uploadHeartRate(72, DateTime.utc(2026, 9, 18, 10)),
+      throwsA(isA<ApiException>()),
+    );
+    online = true;
+    await session.retryPendingMeasurements();
+    await session.refreshHeartRate();
+    expect(session.averageHeartRate, 72.5);
+    expect(posted.where((path) => path.endsWith('/heart-rate')).length, 2);
+
+    final sleep = SleepSummary.fromRecords([
+      SleepRecord(
+        start: DateTime.utc(2026, 9, 18, 1),
+        stages: const [SleepStage.unknown, SleepStage.unknown],
+      ),
+    ]);
+    expect(sleep.hasValidatedStages, isFalse);
+    expect(sleep.observedMinutes, 2);
+    await session.uploadSleep(sleep);
+    expect(posted.last, '/api/measurements/sleep');
     session.dispose();
   });
 }

@@ -93,6 +93,7 @@ class V8BandService extends ChangeNotifier {
   LiveVitals? liveVitals;
   String? liveHrStatus;
   SleepSummary? sleepSummary;
+  DateTime? liveVitalsAt;
   bool isSleepSyncing = false;
 
   // ── Workout / exercise state ──
@@ -580,6 +581,7 @@ class V8BandService extends ChangeNotifier {
       if (vitals != null) {
         _pending.remove(cmd)?.complete(bytes);
         liveVitals = vitals;
+        liveVitalsAt = DateTime.now();
         liveHrStatus = vitals.heartRate != null
             ? 'Live heart rate'
             : 'Waiting for heart rate... stay still';

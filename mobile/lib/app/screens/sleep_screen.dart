@@ -16,8 +16,6 @@ class SleepScreen extends StatefulWidget {
 }
 
 class _SleepScreenState extends State<SleepScreen> {
-  bool _uploaded = false;
-
   @override
   void initState() {
     super.initState();
@@ -32,24 +30,10 @@ class _SleepScreenState extends State<SleepScreen> {
     });
   }
 
-  /// Send the sleep summary to the backend once, after a sync produces data.
-  Future<void> _uploadSleep(SleepSummary summary) async {
-    final session = SessionScope.of(context);
-    final l = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await session.uploadSleep(summary);
-      if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(l.t('sync_ok_sleep'))));
-    } catch (_) {
-      if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(l.t('sync_failed'))));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final band = BandServiceScope.of(context);
+    final session = SessionScope.of(context);
     return ListenableBuilder(
       listenable: band,
       builder: (context, _) {
@@ -57,14 +41,6 @@ class _SleepScreenState extends State<SleepScreen> {
         final c = context.appColors;
         final summary = band.sleepSummary;
         final syncing = band.isSleepSyncing;
-
-        // Upload once when sleep data becomes available.
-        if (summary != null && summary.hasValidatedStages && !_uploaded) {
-          _uploaded = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _uploadSleep(summary);
-          });
-        }
 
         return Scaffold(
           backgroundColor: const Color(0xFF0A0E13),
@@ -111,20 +87,73 @@ class _SleepScreenState extends State<SleepScreen> {
               : summary != null &&
                     summary.hasData &&
                     !summary.hasValidatedStages
-              ? Padding(
+              ? ListView(
                   padding: const EdgeInsets.all(24),
-                  child: Text(l.t('sleep_unverified')),
+                  children: [
+                    Text(l.t('sleep_unverified')),
+                    _SavedSleepHistory(
+                      observations: session.savedSleepObservations,
+                      l: l,
+                      c: c,
+                    ),
+                  ],
                 )
               : (summary == null || !summary.hasData)
-              ? _EmptyState(
-                  syncing: syncing,
-                  connected: band.isConnected,
-                  l: l,
-                  c: c,
-                )
+              ? session.savedSleepObservations.isNotEmpty
+                    ? ListView(
+                        padding: const EdgeInsets.all(24),
+                        children: [
+                          _SavedSleepHistory(
+                            observations: session.savedSleepObservations,
+                            l: l,
+                            c: c,
+                          ),
+                        ],
+                      )
+                    : _EmptyState(
+                        syncing: syncing,
+                        connected: band.isConnected,
+                        l: l,
+                        c: c,
+                      )
               : _SleepContent(summary: summary, l: l, c: c),
         );
       },
+    );
+  }
+}
+
+class _SavedSleepHistory extends StatelessWidget {
+  const _SavedSleepHistory({
+    required this.observations,
+    required this.l,
+    required this.c,
+  });
+
+  final List<Map<String, dynamic>> observations;
+  final AppLocalizations l;
+  final AppColors c;
+
+  @override
+  Widget build(BuildContext context) {
+    if (observations.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        Text(l.t('saved_sleep'), style: TextStyle(color: c.subtext)),
+        const SizedBox(height: 8),
+        for (final row in observations.take(10))
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Text(
+              '${DateTime.parse(row['ended_at'] as String).toLocal().toString().substring(0, 16)}'
+              ' · ${row['observed_minutes']} ${l.t('minutes_observed')}'
+              '${row['stages_validated'] == true ? '' : ' · ${l.t('stages_unverified')}'}',
+              style: const TextStyle(color: Color(0xFFDCE6F5)),
+            ),
+          ),
+      ],
     );
   }
 }

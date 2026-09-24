@@ -19,6 +19,10 @@ class SessionController extends ChangeNotifier {
   bool _disposed = false;
   int _sessionGeneration = 0;
   Future<void> _uploadSerial = Future.value();
+  double? averageHeartRate;
+  int heartRateSampleCount = 0;
+  List<WorkoutSummary> savedWorkouts = const [];
+  List<Map<String, dynamic>> savedSleepObservations = const [];
 
   @override
   void notifyListeners() {
@@ -55,6 +59,8 @@ class SessionController extends ChangeNotifier {
       userEmail = savedEmail;
       api.token = _token;
       unawaited(retryPendingWorkouts().catchError((_) {}));
+      unawaited(retryPendingMeasurements().catchError((_) {}));
+      unawaited(refreshHistory().catchError((_) {}));
     } catch (_) {
       _token = null;
       api.token = null;
@@ -93,6 +99,10 @@ class SessionController extends ChangeNotifier {
     api.token = null;
     userName = null;
     userEmail = null;
+    averageHeartRate = null;
+    heartRateSampleCount = 0;
+    savedWorkouts = const [];
+    savedSleepObservations = const [];
     try {
       await _storage.delete(key: _tokenKey);
       await _storage.delete(key: _userNameKey);
@@ -119,6 +129,8 @@ class SessionController extends ChangeNotifier {
     await _storage.write(key: _userEmailKey, value: userEmail);
     notifyListeners();
     unawaited(retryPendingWorkouts().catchError((_) {}));
+    unawaited(retryPendingMeasurements().catchError((_) {}));
+    unawaited(refreshHistory().catchError((_) {}));
   }
 
   // ── Data uploads (band → API) ───────────────────────────────────────────────
@@ -180,22 +192,146 @@ class SessionController extends ChangeNotifier {
         );
         pending.removeAt(0);
         await _storage.write(key: key, value: jsonEncode(pending));
+        unawaited(refreshWorkouts().catchError((_) {}));
       }
     });
     _uploadSerial = operation.catchError((_) {});
     return operation;
   }
 
-  /// Push a sleep summary as the daily sleep metric.
-  Future<void> uploadSleep(SleepSummary s) async {
-    if (!s.hasValidatedStages) {
-      throw StateError('Sleep interpretation is not verified');
+  Future<void> uploadHeartRate(int bpm, DateTime measuredAt) async {
+    if (bpm < 30 || bpm > 240) return;
+    await _queueMeasurement({
+      'kind': 'heart_rate',
+      'client_id': 'hr-${measuredAt.toUtc().microsecondsSinceEpoch}',
+      'measured_at': measuredAt.toUtc().toIso8601String(),
+      'bpm': bpm,
+    });
+    await refreshHeartRate();
+  }
+
+  Future<void> refreshHeartRate() async {
+    if (!isAuthenticated) return;
+    final generation = _sessionGeneration;
+    final response = await api.recentHeartRate();
+    if (generation != _sessionGeneration || _disposed) return;
+    averageHeartRate = (response['average_bpm'] as num?)?.toDouble();
+    heartRateSampleCount = (response['count'] as num?)?.toInt() ?? 0;
+    notifyListeners();
+  }
+
+  Future<void> refreshWorkouts() async {
+    if (!isAuthenticated) return;
+    final generation = _sessionGeneration;
+    final response = await api.workouts();
+    if (generation != _sessionGeneration || _disposed) return;
+    final rows = response['data'] as List? ?? const [];
+    savedWorkouts = rows.whereType<Map>().map((row) {
+      final metrics = row['metrics'] is Map ? row['metrics'] as Map : const {};
+      final typeName = row['type'] as String?;
+      return WorkoutSummary(
+        type: ExerciseType.values.firstWhere(
+          (type) => type.name == typeName,
+          orElse: () => ExerciseType.workout,
+        ),
+        startTime: DateTime.parse(row['performed_at'] as String).toLocal(),
+        heartRate: (metrics['last_heart_rate'] as num?)?.toInt() ?? 0,
+        steps: (metrics['steps'] as num?)?.toInt() ?? 0,
+        calories: (metrics['calories'] as num?)?.toDouble() ?? 0,
+        durationSeconds:
+            (metrics['duration_seconds'] as num?)?.toInt() ??
+            ((row['duration_minutes'] as num?)?.toInt() ?? 0) * 60,
+        distanceM: (metrics['distance_m'] as num?)?.toDouble() ?? 0,
+      );
+    }).toList();
+    notifyListeners();
+  }
+
+  Future<void> refreshHistory() async {
+    await Future.wait([refreshHeartRate(), refreshWorkouts(), refreshSleep()]);
+  }
+
+  Future<void> refreshSleep() async {
+    if (!isAuthenticated) return;
+    final generation = _sessionGeneration;
+    final response = await api.recentSleep();
+    if (generation != _sessionGeneration || _disposed) return;
+    savedSleepObservations = (response['observations'] as List? ?? const [])
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
+    notifyListeners();
+  }
+
+  Future<void> retryPendingMeasurements() => _queueMeasurement(null);
+
+  Future<void> _queueMeasurement(Map<String, dynamic>? incoming) {
+    if (!isAuthenticated || userEmail == null || _disposed) {
+      return incoming == null
+          ? Future.value()
+          : Future.error(StateError('Sign in before uploading'));
     }
-    await api.sleepCheckin(
-      date: s.wakeTime,
-      sleepHours: s.sleepMinutes / 60.0,
-      sleepQuality: (s.score / 100.0).clamp(0.0, 1.0),
-    );
+    final generation = _sessionGeneration;
+    final key = 'pending_measurements_${Uri.encodeComponent(userEmail!)}';
+    final operation = _uploadSerial.then((_) async {
+      if (generation != _sessionGeneration || _disposed) return;
+      final stored = await _storage.read(key: key);
+      final pending = stored == null
+          ? <Map<String, dynamic>>[]
+          : (jsonDecode(stored) as List)
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+      if (incoming != null &&
+          !pending.any((e) => e['client_id'] == incoming['client_id'])) {
+        pending.add(incoming);
+        await _storage.write(key: key, value: jsonEncode(pending));
+      }
+      while (pending.isNotEmpty) {
+        if (generation != _sessionGeneration || _disposed) return;
+        final next = pending.first;
+        if (next['kind'] == 'heart_rate') {
+          await api.storeHeartRate(
+            clientId: next['client_id'] as String,
+            measuredAt: DateTime.parse(next['measured_at'] as String),
+            bpm: next['bpm'] as int,
+          );
+        } else if (next['kind'] == 'sleep') {
+          await api.storeSleepObservation(
+            clientId: next['client_id'] as String,
+            startedAt: DateTime.parse(next['started_at'] as String),
+            endedAt: DateTime.parse(next['ended_at'] as String),
+            observedMinutes: next['observed_minutes'] as int,
+            stagesValidated: next['stages_validated'] as bool,
+          );
+        }
+        pending.removeAt(0);
+        await _storage.write(key: key, value: jsonEncode(pending));
+      }
+    });
+    _uploadSerial = operation.catchError((_) {});
+    return operation;
+  }
+
+  /// Save the observed interval even when the vendor stage mapping is unknown.
+  /// Only validated sleep stages can populate the daily sleep metric.
+  Future<void> uploadSleep(SleepSummary s) async {
+    if (!s.hasData || s.bedTime == null || s.wakeTime == null) return;
+    await _queueMeasurement({
+      'kind': 'sleep',
+      'client_id': 'sleep-${s.bedTime!.toUtc().microsecondsSinceEpoch}',
+      'started_at': s.bedTime!.toUtc().toIso8601String(),
+      'ended_at': s.wakeTime!.toUtc().toIso8601String(),
+      'observed_minutes': s.observedMinutes.clamp(1, 1440),
+      'stages_validated': s.hasValidatedStages,
+    });
+    unawaited(refreshSleep().catchError((_) {}));
+    if (s.hasValidatedStages) {
+      await api.sleepCheckin(
+        date: s.wakeTime,
+        sleepHours: s.sleepMinutes / 60.0,
+        sleepQuality: (s.score / 100.0).clamp(0.0, 1.0),
+      );
+    }
   }
 
   /// Rough 1..10 intensity derived from average heart rate. 60 bpm → ~1,

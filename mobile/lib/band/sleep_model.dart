@@ -36,6 +36,7 @@ class SleepSummary {
     required this.awakeMinutes,
     required this.timeline,
     required this.score,
+    required this.observedMinutes,
   });
 
   const SleepSummary.empty()
@@ -46,7 +47,8 @@ class SleepSummary {
       remMinutes = 0,
       awakeMinutes = 0,
       timeline = const <SleepStage>[],
-      score = 0;
+      score = 0,
+      observedMinutes = 0;
 
   factory SleepSummary.fromRecords(List<SleepRecord> records) {
     if (records.isEmpty) return const SleepSummary.empty();
@@ -105,6 +107,7 @@ class SleepSummary {
       awakeMinutes: awake,
       timeline: timeline,
       score: score,
+      observedMinutes: minutes.length,
     );
   }
 
@@ -116,6 +119,9 @@ class SleepSummary {
   final int awakeMinutes;
   final List<SleepStage> timeline;
   final int score;
+
+  /// Minutes backed by records from the band, excluding gaps in the timeline.
+  final int observedMinutes;
 
   bool get hasData => timeline.isNotEmpty;
   bool get hasValidatedStages =>

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../../api/session_controller.dart';
 import '../../band/workout_model.dart';
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
@@ -13,6 +14,7 @@ class TrainingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final band = BandServiceScope.of(context);
+    final session = SessionScope.of(context);
     return ListenableBuilder(
       listenable: band,
       builder: (context, _) {
@@ -91,8 +93,11 @@ class TrainingScreen extends StatelessWidget {
             // Only recorded workouts are shown.
             _sectionLabel(c, l.t('recent')),
             const SizedBox(height: 11),
-            if (band.workoutHistory.isNotEmpty)
-              ...band.workoutHistory
+            if (session.savedWorkouts.isNotEmpty ||
+                band.workoutHistory.isNotEmpty)
+              ...(session.savedWorkouts.isNotEmpty
+                      ? session.savedWorkouts
+                      : band.workoutHistory)
                   .take(5)
                   .map(
                     (w) => Padding(
