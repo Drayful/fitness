@@ -236,7 +236,7 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                     const SizedBox(height: 8),
                     DropdownButton<BandVariant>(
                       value: service.variantConfirmed ? service.variant : null,
-                      hint: const Text('Select device model'),
+                      hint: const Text('Select model once for this watch'),
                       items: BandVariant.values
                           .map(
                             (v) => DropdownMenuItem(
@@ -251,7 +251,7 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                           : (value) async {
                               try {
                                 await service.stopLiveHeartRate();
-                                service.overrideVariant(value);
+                                await service.overrideVariant(value);
                                 await service.startLiveHeartRate();
                               } catch (error) {
                                 if (context.mounted) {

@@ -6,6 +6,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'band_variant.dart';
+import 'band_variant_store.dart';
 import 'sleep_model.dart';
 import 'v8_protocol.dart';
 import 'workout_model.dart';
@@ -51,6 +52,10 @@ class BandDeviceInfo {
 }
 
 class V8BandService extends ChangeNotifier {
+  V8BandService({BandVariantStore? variantStore})
+    : _variantStore = variantStore ?? BandVariantStore();
+
+  final BandVariantStore _variantStore;
   BandConnectionState state = BandConnectionState.idle;
   String? statusMessage;
   final List<ScannedBand> scanResults = [];
@@ -80,10 +85,10 @@ class V8BandService extends ChangeNotifier {
   /// SDK model selected by the user; time/MTU replies cannot distinguish it.
   BandVariant variant = BandVariant.legacyV8;
 
-  /// True only after an explicit model selection for this Bluetooth device.
+  /// True after a model selection, including one recalled for this device.
   bool variantConfirmed = false;
 
-  /// Set when the user pins a variant by hand; the handshake then leaves it be.
+  /// Selection for each connected device, also backed by local persistence.
   final Map<String, BandVariant> _deviceVariants = {};
   BandVariant? get _forcedVariant =>
       _device == null ? null : _deviceVariants[_device!.remoteId.str];
@@ -118,9 +123,8 @@ class V8BandService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Confirms the SDK family for this device. Passing null clears confirmation;
-  /// no reliable automatic model identification is available in the SDK.
-  void overrideVariant(BandVariant? value) {
+  /// Confirms the SDK family for this device. Passing null clears confirmation.
+  Future<void> overrideVariant(BandVariant? value) async {
     if (isWorkoutActive || isSleepSyncing) return;
     final id = _device?.remoteId.str;
     if (id == null) return;
@@ -138,6 +142,10 @@ class V8BandService extends ChangeNotifier {
     sleepSummary = null;
     sleepRecords = const [];
     notifyListeners();
+    await _variantStore.remember(id, deviceInfo?.mac, value);
+    if (value != null && _ready) {
+      _scheduleSleepSync(_connectionGeneration);
+    }
   }
 
   static bool _isLikelyBand(String name, bool hasV8Service) {
@@ -234,6 +242,12 @@ class V8BandService extends ChangeNotifier {
     await FlutterBluePlus.stopScan();
     await disconnect();
     final generation = ++_connectionGeneration;
+    final remoteId = device.remoteId.str;
+    final remembered =
+        _deviceVariants[remoteId] ??
+        await _variantStore.findByRemoteId(remoteId);
+    if (generation != _connectionGeneration || _disposed) return;
+    if (remembered != null) _deviceVariants[remoteId] = remembered;
     _device = device;
     variant = _forcedVariant ?? BandVariant.legacyV8;
     variantConfirmed = _forcedVariant != null;
@@ -308,7 +322,9 @@ class V8BandService extends ChangeNotifier {
       await _syncBasics(device);
       if (generation != _connectionGeneration || !_ready || _disposed) return;
       state = BandConnectionState.connected;
-      statusMessage = 'Connected and synced';
+      statusMessage = variantConfirmed
+          ? 'Connected. Model restored; syncing data.'
+          : 'Connected. Select the watch model once to sync sleep and train.';
       notifyListeners();
 
       // Auto-start live metrics and sleep sync after a short stabilization delay.
@@ -318,18 +334,24 @@ class V8BandService extends ChangeNotifier {
           await startLiveHeartRate();
         } catch (_) {}
       });
-      Future<void>.delayed(const Duration(seconds: 2)).then((_) async {
-        if (!_ready || generation != _connectionGeneration) return;
-        try {
-          await syncSleepData();
-        } catch (_) {}
-      });
+      if (variantConfirmed) _scheduleSleepSync(generation);
     } catch (e) {
       state = BandConnectionState.error;
       statusMessage = 'Connection failed: $e';
       notifyListeners();
       await disconnect();
     }
+  }
+
+  void _scheduleSleepSync(int generation) {
+    Future<void>.delayed(const Duration(seconds: 2)).then((_) async {
+      if (!_ready || generation != _connectionGeneration || !variantConfirmed) {
+        return;
+      }
+      try {
+        await syncSleepData();
+      } catch (_) {}
+    });
   }
 
   Future<List<BluetoothService>> _discoverServicesWithRetry(
@@ -386,6 +408,20 @@ class V8BandService extends ChangeNotifier {
       isCharging: battery.length > 2 && battery[2] == 1,
       firmware: V8Protocol.parseFirmware(firmware) ?? 'unknown',
     );
+    if (!variantConfirmed) {
+      final macAddress = deviceInfo!.mac;
+      final remembered = await _variantStore.findByMac(macAddress);
+      if (remembered != null && _device == device && _ready && !_disposed) {
+        _deviceVariants[device.remoteId.str] = remembered;
+        variant = remembered;
+        variantConfirmed = true;
+        await _variantStore.remember(
+          device.remoteId.str,
+          macAddress,
+          remembered,
+        );
+      }
+    }
     notifyListeners();
   }
 

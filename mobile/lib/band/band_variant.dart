@@ -1,7 +1,8 @@
 /// Firmware protocol variants supported by [V8Protocol].
 ///
 /// The supplied V8 and 2208A SDKs share BCD time and 0x53 sleep framing.
-/// Select a model explicitly: time and MTU replies cannot identify it.
+/// Confirm each new model explicitly; remembered selections are reused later.
+/// Time and MTU replies cannot identify it.
 enum BandVariant {
   /// V8 SDK-20260319. The enum name is retained for existing callers.
   legacyV8,
