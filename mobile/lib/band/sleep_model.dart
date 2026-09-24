@@ -107,7 +107,7 @@ class SleepSummary {
       awakeMinutes: awake,
       timeline: timeline,
       score: score,
-      observedMinutes: minutes.length,
+      observedMinutes: timestamps.where((t) => t >= first).length,
     );
   }
 

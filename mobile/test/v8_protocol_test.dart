@@ -177,6 +177,7 @@ void main() {
     );
     final s = SleepSummary.fromRecords([old, recent, recent]);
     expect(s.totalMinutes, 60);
+    expect(s.observedMinutes, 60);
     expect(s.bedTime, recent.start);
     expect(s.wakeTime, DateTime(2026, 9, 18, 1));
   });
@@ -194,5 +195,6 @@ void main() {
       SleepStage.light,
     ]);
     expect(s.hasValidatedStages, isFalse);
+    expect(s.observedMinutes, 2);
   });
 }
