@@ -130,13 +130,17 @@ class WorkoutSummary {
     required this.calories,
     required this.durationSeconds,
     required this.distanceM,
+    this.averageHeartRate,
+    this.maxHeartRate,
   });
 
   factory WorkoutSummary.fromLive(
     ExerciseType type,
     DateTime startTime,
-    WorkoutLive live,
-  ) => WorkoutSummary(
+    WorkoutLive live, {
+    int? averageHeartRate,
+    int? maxHeartRate,
+  }) => WorkoutSummary(
     type: type,
     startTime: startTime,
     heartRate: live.heartRate,
@@ -144,6 +148,8 @@ class WorkoutSummary {
     calories: live.calories,
     durationSeconds: live.durationSeconds,
     distanceM: live.distanceM,
+    averageHeartRate: averageHeartRate,
+    maxHeartRate: maxHeartRate,
   );
 
   final ExerciseType type;
@@ -153,6 +159,8 @@ class WorkoutSummary {
   final double calories;
   final int durationSeconds;
   final double distanceM;
+  final int? averageHeartRate;
+  final int? maxHeartRate;
 
   WorkoutLive get asLive => WorkoutLive(
     heartRate: heartRate,

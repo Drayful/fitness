@@ -22,6 +22,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/checkins/sleep', [CheckinController::class, 'sleep']);
     Route::post('/measurements/heart-rate', [MeasurementController::class, 'storeHeartRate']);
     Route::get('/measurements/heart-rate/recent', [MeasurementController::class, 'recentHeartRate']);
+    Route::post('/measurements/vitals', [MeasurementController::class, 'storeVitals']);
+    Route::get('/measurements/vitals/recent', [MeasurementController::class, 'recentVitals']);
     Route::post('/measurements/sleep', [MeasurementController::class, 'storeSleep']);
     Route::get('/measurements/sleep/recent', [MeasurementController::class, 'recentSleep']);
 

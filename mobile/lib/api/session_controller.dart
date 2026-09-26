@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../band/sleep_model.dart';
+import '../band/band_variant.dart';
+import '../band/v8_protocol.dart';
 import '../band/workout_model.dart';
 import 'api_client.dart';
 
@@ -23,6 +25,7 @@ class SessionController extends ChangeNotifier {
   int heartRateSampleCount = 0;
   List<WorkoutSummary> savedWorkouts = const [];
   List<Map<String, dynamic>> savedSleepObservations = const [];
+  List<Map<String, dynamic>> recentVitals = const [];
 
   @override
   void notifyListeners() {
@@ -103,6 +106,7 @@ class SessionController extends ChangeNotifier {
     heartRateSampleCount = 0;
     savedWorkouts = const [];
     savedSleepObservations = const [];
+    recentVitals = const [];
     try {
       await _storage.delete(key: _tokenKey);
       await _storage.delete(key: _userNameKey);
@@ -144,12 +148,14 @@ class SessionController extends ChangeNotifier {
       'performed_at': s.startTime.toUtc().toIso8601String(),
       'type': s.type.name,
       'duration_minutes': (s.durationSeconds / 60).round().clamp(1, 600),
-      'intensity': _intensityFromHr(s.heartRate),
+      'intensity': _intensityFromHr(s.averageHeartRate ?? s.heartRate),
       'metrics': {
         'steps': s.steps,
         'calories': s.calories,
         'distance_m': s.distanceM > 0 ? s.distanceM : null,
         'last_heart_rate': s.heartRate > 0 ? s.heartRate : null,
+        'average_heart_rate': s.averageHeartRate,
+        'max_heart_rate': s.maxHeartRate,
         'duration_seconds': s.durationSeconds,
       },
     };
@@ -210,6 +216,46 @@ class SessionController extends ChangeNotifier {
     await refreshHeartRate();
   }
 
+  Future<void> uploadVitals(
+    LiveVitals vitals,
+    DateTime measuredAt, {
+    BandVariant? model,
+  }) async {
+    final rawHeartRate = vitals.heartRate;
+    final rawSpo2 = vitals.spo2;
+    final rawTemperature = vitals.temperatureC;
+    final rawSteps = vitals.steps;
+    final heartRate =
+        rawHeartRate != null && rawHeartRate >= 30 && rawHeartRate <= 240
+        ? rawHeartRate
+        : null;
+    final spo2 = rawSpo2 != null && rawSpo2 >= 1 && rawSpo2 <= 100
+        ? rawSpo2
+        : null;
+    final temperature =
+        rawTemperature != null && rawTemperature >= 0 && rawTemperature <= 60
+        ? rawTemperature
+        : null;
+    final steps = rawSteps >= 0 && rawSteps <= 1000000 ? rawSteps : null;
+    if (heartRate == null &&
+        spo2 == null &&
+        temperature == null &&
+        steps == null) {
+      return;
+    }
+    await _queueMeasurement({
+      'kind': 'vitals',
+      'client_id': 'vitals-${measuredAt.toUtc().microsecondsSinceEpoch}',
+      'measured_at': measuredAt.toUtc().toIso8601String(),
+      'heart_rate': heartRate,
+      'spo2': spo2,
+      'temperature_c': temperature,
+      'steps': steps,
+      'device_model': model?.name,
+    });
+    await Future.wait([refreshHeartRate(), refreshVitals()]);
+  }
+
   Future<void> refreshHeartRate() async {
     if (!isAuthenticated) return;
     final generation = _sessionGeneration;
@@ -236,6 +282,8 @@ class SessionController extends ChangeNotifier {
         ),
         startTime: DateTime.parse(row['performed_at'] as String).toLocal(),
         heartRate: (metrics['last_heart_rate'] as num?)?.toInt() ?? 0,
+        averageHeartRate: (metrics['average_heart_rate'] as num?)?.toInt(),
+        maxHeartRate: (metrics['max_heart_rate'] as num?)?.toInt(),
         steps: (metrics['steps'] as num?)?.toInt() ?? 0,
         calories: (metrics['calories'] as num?)?.toDouble() ?? 0,
         durationSeconds:
@@ -248,7 +296,24 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> refreshHistory() async {
-    await Future.wait([refreshHeartRate(), refreshWorkouts(), refreshSleep()]);
+    await Future.wait([
+      refreshHeartRate(),
+      refreshVitals(),
+      refreshWorkouts(),
+      refreshSleep(),
+    ]);
+  }
+
+  Future<void> refreshVitals() async {
+    if (!isAuthenticated) return;
+    final generation = _sessionGeneration;
+    final response = await api.recentVitals();
+    if (generation != _sessionGeneration || _disposed) return;
+    recentVitals = (response['snapshots'] as List? ?? const [])
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
+    notifyListeners();
   }
 
   Future<void> refreshSleep() async {
@@ -295,6 +360,16 @@ class SessionController extends ChangeNotifier {
             measuredAt: DateTime.parse(next['measured_at'] as String),
             bpm: next['bpm'] as int,
           );
+        } else if (next['kind'] == 'vitals') {
+          await api.storeVitals(
+            clientId: next['client_id'] as String,
+            measuredAt: DateTime.parse(next['measured_at'] as String),
+            heartRate: (next['heart_rate'] as num?)?.toInt(),
+            spo2: (next['spo2'] as num?)?.toInt(),
+            temperatureC: (next['temperature_c'] as num?)?.toDouble(),
+            steps: (next['steps'] as num?)?.toInt(),
+            deviceModel: next['device_model'] as String?,
+          );
         } else if (next['kind'] == 'sleep') {
           await api.storeSleepObservation(
             clientId: next['client_id'] as String,
@@ -302,6 +377,11 @@ class SessionController extends ChangeNotifier {
             endedAt: DateTime.parse(next['ended_at'] as String),
             observedMinutes: next['observed_minutes'] as int,
             stagesValidated: next['stages_validated'] as bool,
+            records: next['records'] == null
+                ? null
+                : (next['records'] as List)
+                      .map((row) => Map<String, dynamic>.from(row as Map))
+                      .toList(),
           );
         }
         pending.removeAt(0);
@@ -314,7 +394,10 @@ class SessionController extends ChangeNotifier {
 
   /// Save the observed interval even when the vendor stage mapping is unknown.
   /// Only validated sleep stages can populate the daily sleep metric.
-  Future<void> uploadSleep(SleepSummary s) async {
+  Future<void> uploadSleep(
+    SleepSummary s, {
+    List<SleepRecord> records = const [],
+  }) async {
     if (!s.hasData || s.bedTime == null || s.wakeTime == null) return;
     await _queueMeasurement({
       'kind': 'sleep',
@@ -323,6 +406,24 @@ class SessionController extends ChangeNotifier {
       'ended_at': s.wakeTime!.toUtc().toIso8601String(),
       'observed_minutes': s.observedMinutes.clamp(1, 1440),
       'stages_validated': s.hasValidatedStages,
+      'records': records
+          .where(
+            (record) =>
+                record.rawValues.isNotEmpty &&
+                record.start.isBefore(s.wakeTime!) &&
+                record.start
+                    .add(Duration(minutes: record.durationMinutes))
+                    .isAfter(s.bedTime!),
+          )
+          .take(100)
+          .map(
+            (record) => {
+              'start_at': record.start.toUtc().toIso8601String(),
+              'unit_minutes': record.unitMinutes,
+              'raw_values': record.rawValues.take(120).toList(),
+            },
+          )
+          .toList(),
     });
     unawaited(refreshSleep().catchError((_) {}));
     if (s.hasValidatedStages) {

@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
-#[Fillable(['user_id', 'client_id', 'started_at', 'ended_at', 'observed_minutes', 'stages_validated'])]
+#[Fillable(['user_id', 'client_id', 'started_at', 'ended_at', 'observed_minutes', 'stages_validated', 'records'])]
 class SleepObservation extends Model
 {
     protected function casts(): array
@@ -15,6 +15,7 @@ class SleepObservation extends Model
             'ended_at' => 'datetime',
             'observed_minutes' => 'integer',
             'stages_validated' => 'boolean',
+            'records' => 'array',
         ];
     }
 }

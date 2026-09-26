@@ -26,11 +26,13 @@ class WorkoutController extends Controller
             'intensity' => ['required', 'integer', 'min:1', 'max:10'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'client_id' => ['nullable', 'string', 'max:100'],
-            'metrics' => ['nullable', 'array:steps,calories,distance_m,last_heart_rate,duration_seconds'],
+            'metrics' => ['nullable', 'array:steps,calories,distance_m,last_heart_rate,average_heart_rate,max_heart_rate,duration_seconds'],
             'metrics.steps' => ['nullable', 'integer', 'min:0'],
             'metrics.calories' => ['nullable', 'numeric', 'min:0'],
             'metrics.distance_m' => ['nullable', 'numeric', 'min:0'],
             'metrics.last_heart_rate' => ['nullable', 'integer', 'min:1', 'max:255'],
+            'metrics.average_heart_rate' => ['nullable', 'integer', 'min:30', 'max:240'],
+            'metrics.max_heart_rate' => ['nullable', 'integer', 'min:30', 'max:240'],
             'metrics.duration_seconds' => ['nullable', 'integer', 'min:0'],
         ]);
 

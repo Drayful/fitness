@@ -110,6 +110,13 @@ class V8BandService extends ChangeNotifier {
   bool workoutEndedByDevice = false;
   int? workoutInactiveWarning;
   final List<WorkoutSummary> workoutHistory = [];
+  int _workoutHeartRateSum = 0;
+  int _workoutHeartRateCount = 0;
+  int _workoutHeartRateMax = 0;
+
+  int? get _averageWorkoutHeartRate => _workoutHeartRateCount == 0
+      ? null
+      : (_workoutHeartRateSum / _workoutHeartRateCount).round();
 
   bool get isConnected => state == BandConnectionState.connected;
 
@@ -687,6 +694,9 @@ class V8BandService extends ChangeNotifier {
         isWorkoutActive = true;
         isWorkoutPaused = false;
         workoutLive = null;
+        _workoutHeartRateSum = 0;
+        _workoutHeartRateCount = 0;
+        _workoutHeartRateMax = 0;
         workoutEndedByDevice = false;
         workoutInactiveWarning = null;
         _startWorkoutHeartbeat();
@@ -751,6 +761,8 @@ class V8BandService extends ChangeNotifier {
         activeExerciseType!,
         workoutStartTime ?? DateTime.now(),
         workoutLive!,
+        averageHeartRate: _averageWorkoutHeartRate,
+        maxHeartRate: _workoutHeartRateCount == 0 ? null : _workoutHeartRateMax,
       );
       workoutHistory.insert(0, summary);
       if (workoutHistory.length > 20) workoutHistory.removeLast();
@@ -824,6 +836,10 @@ class V8BandService extends ChangeNotifier {
             activeExerciseType!,
             workoutStartTime ?? DateTime.now(),
             workoutLive!,
+            averageHeartRate: _averageWorkoutHeartRate,
+            maxHeartRate: _workoutHeartRateCount == 0
+                ? null
+                : _workoutHeartRateMax,
           );
           workoutHistory.insert(0, summary);
           if (workoutHistory.length > 20) workoutHistory.removeLast();
@@ -856,6 +872,13 @@ class V8BandService extends ChangeNotifier {
     if (isWorkoutActive && !isWorkoutPaused) {
       final live = V8Protocol.parseExerciseLive(bytes, variant);
       if (live != null) {
+        if (live.heartRate >= 30 && live.heartRate <= 240) {
+          _workoutHeartRateSum += live.heartRate;
+          _workoutHeartRateCount++;
+          if (live.heartRate > _workoutHeartRateMax) {
+            _workoutHeartRateMax = live.heartRate;
+          }
+        }
         // 2208A frames carry no duration; fall back to elapsed wall time so
         // the workout screen still counts up and can derive pace.
         workoutLive = live.durationSeconds > 0 || workoutStartTime == null

@@ -213,12 +213,38 @@ class ApiClient {
   Future<Map<String, dynamic>> recentHeartRate() =>
       _send('GET', '/api/measurements/heart-rate/recent');
 
+  Future<Map<String, dynamic>> storeVitals({
+    required String clientId,
+    required DateTime measuredAt,
+    int? heartRate,
+    int? spo2,
+    double? temperatureC,
+    int? steps,
+    String? deviceModel,
+  }) => _send(
+    'POST',
+    '/api/measurements/vitals',
+    body: {
+      'client_id': clientId,
+      'measured_at': measuredAt.toUtc().toIso8601String(),
+      'heart_rate': ?heartRate,
+      'spo2': ?spo2,
+      'temperature_c': ?temperatureC,
+      'steps': ?steps,
+      'device_model': ?deviceModel,
+    },
+  );
+
+  Future<Map<String, dynamic>> recentVitals() =>
+      _send('GET', '/api/measurements/vitals/recent');
+
   Future<Map<String, dynamic>> storeSleepObservation({
     required String clientId,
     required DateTime startedAt,
     required DateTime endedAt,
     required int observedMinutes,
     required bool stagesValidated,
+    List<Map<String, dynamic>>? records,
   }) => _send(
     'POST',
     '/api/measurements/sleep',
@@ -228,6 +254,7 @@ class ApiClient {
       'ended_at': endedAt.toUtc().toIso8601String(),
       'observed_minutes': observedMinutes,
       'stages_validated': stagesValidated,
+      'records': ?records,
     },
   );
 

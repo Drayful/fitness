@@ -32,23 +32,32 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _bandService.addListener(_saveHeartRate);
+    _bandService.addListener(_saveVitals);
     _bandService.addListener(_saveSleep);
     _session.addListener(_saveSleep);
     _session.load();
   }
 
-  void _saveHeartRate() {
-    final bpm = _bandService.liveVitals?.heartRate;
+  void _saveVitals() {
+    final vitals = _bandService.liveVitals;
     final measuredAt = _bandService.liveVitalsAt;
-    if (!_session.isAuthenticated || bpm == null || measuredAt == null) return;
+    if (!_session.isAuthenticated || vitals == null || measuredAt == null)
+      return;
     if (_lastHeartRateUploadAt != null &&
         measuredAt.difference(_lastHeartRateUploadAt!) <
             const Duration(seconds: 30)) {
       return;
     }
     _lastHeartRateUploadAt = measuredAt;
-    unawaited(_session.uploadHeartRate(bpm, measuredAt).catchError((_) {}));
+    unawaited(
+      _session
+          .uploadVitals(
+            vitals,
+            measuredAt,
+            model: _bandService.variantConfirmed ? _bandService.variant : null,
+          )
+          .catchError((_) {}),
+    );
   }
 
   void _saveSleep() {
@@ -63,13 +72,17 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
         '${_session.userEmail}-${summary.bedTime!.toUtc().microsecondsSinceEpoch}';
     if (id == _lastSleepUploadId) return;
     _lastSleepUploadId = id;
-    unawaited(_session.uploadSleep(summary).catchError((_) {}));
+    unawaited(
+      _session
+          .uploadSleep(summary, records: _bandService.sleepRecords)
+          .catchError((_) {}),
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _bandService.removeListener(_saveHeartRate);
+    _bandService.removeListener(_saveVitals);
     _bandService.removeListener(_saveSleep);
     _session.removeListener(_saveSleep);
     _bandService.dispose();
