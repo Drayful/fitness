@@ -13,6 +13,24 @@ class BandVariantStore {
   Future<BandVariant?> findByMac(String mac) =>
       _usableMac(mac) ? _read('mac:${mac.toLowerCase()}') : Future.value();
 
+  /// Models explicitly selected for BLE identifiers seen on this phone.
+  Future<Map<String, BandVariant>> confirmedRemoteDevices() async {
+    final prefs = await SharedPreferences.getInstance();
+    const remotePrefix = '${_prefix}remote:';
+    final confirmed = <String, BandVariant>{};
+    for (final key in prefs.getKeys()) {
+      if (!key.startsWith(remotePrefix)) continue;
+      final name = prefs.getString(key);
+      for (final variant in BandVariant.values) {
+        if (variant.name == name) {
+          confirmed[key.substring(remotePrefix.length)] = variant;
+          break;
+        }
+      }
+    }
+    return confirmed;
+  }
+
   Future<void> remember(
     String remoteId,
     String? mac,

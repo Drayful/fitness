@@ -25,14 +25,35 @@ class ScannedBand {
     required this.name,
     required this.rssi,
     required this.hasV8Service,
-    required this.likelyBand,
+    required this.hasNameHint,
+    this.rememberedVariant,
   });
 
   final BluetoothDevice device;
   final String name;
   final int rssi;
   final bool hasV8Service;
-  final bool likelyBand;
+  final bool hasNameHint;
+  final BandVariant? rememberedVariant;
+
+  bool get likelyBand =>
+      rememberedVariant != null || hasV8Service || hasNameHint;
+
+  int get matchRank => rememberedVariant != null
+      ? 3
+      : hasV8Service
+      ? 2
+      : hasNameHint
+      ? 1
+      : 0;
+
+  /// A name is only a hint. Actual compatibility is checked after connecting.
+  static bool hasWatchNameHint(String name) {
+    final normalized = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+    return normalized.startsWith('jcv8') ||
+        normalized.startsWith('v8') ||
+        normalized.contains('2208a');
+  }
 }
 
 class BandDeviceInfo {
@@ -59,6 +80,8 @@ class V8BandService extends ChangeNotifier {
   BandConnectionState state = BandConnectionState.idle;
   String? statusMessage;
   final List<ScannedBand> scanResults = [];
+  final Map<String, ScannedBand> _scanCandidates = {};
+  Map<String, BandVariant> _rememberedRemoteVariants = const {};
   BandDeviceInfo? deviceInfo;
   List<String> lastDiscoveredServices = [];
   String? lastConnectDeviceName;
@@ -72,6 +95,7 @@ class V8BandService extends ChangeNotifier {
   bool _ready = false;
   bool _disposed = false;
   int _connectionGeneration = 0;
+  int _scanGeneration = 0;
   bool _startingLive = false;
   final Stopwatch _workoutClock = Stopwatch();
   List<SleepRecord> sleepRecords = const [];
@@ -93,7 +117,6 @@ class V8BandService extends ChangeNotifier {
   BandVariant? get _forcedVariant =>
       _device == null ? null : _deviceVariants[_device!.remoteId.str];
   Timer? _workoutHeartbeat;
-  bool jcv8OnlyFilter = false;
   bool isLiveHrActive = false;
   bool get isStartingLive => _startingLive;
   LiveVitals? liveVitals;
@@ -120,16 +143,6 @@ class V8BandService extends ChangeNotifier {
       : (_workoutHeartRateSum / _workoutHeartRateCount).round();
 
   bool get isConnected => state == BandConnectionState.connected;
-
-  List<ScannedBand> get visibleScanResults {
-    if (!jcv8OnlyFilter) return scanResults;
-    return scanResults.where((d) => d.likelyBand).toList();
-  }
-
-  void setJcv8OnlyFilter(bool value) {
-    jcv8OnlyFilter = value;
-    notifyListeners();
-  }
 
   /// Confirms the SDK family for this device. Passing null clears confirmation.
   Future<void> overrideVariant(BandVariant? value) async {
@@ -170,22 +183,6 @@ class V8BandService extends ChangeNotifier {
     }
   }
 
-  static bool _isLikelyBand(String name, bool hasV8Service) {
-    if (hasV8Service) return true;
-    final n = name.toLowerCase();
-    const hints = [
-      'jcv8',
-      'v8',
-      'band',
-      'ring',
-      'bracelet',
-      'youhong',
-      'smart',
-      'watch',
-    ];
-    return hints.any(n.contains);
-  }
-
   Future<void> requestPermissions() async {
     if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
 
@@ -204,64 +201,95 @@ class V8BandService extends ChangeNotifier {
   }
 
   Future<void> startScan() async {
-    await requestPermissions();
-    await FlutterBluePlus.stopScan();
-    scanResults.clear();
-    statusMessage = 'Scanning for nearby Bluetooth devices...';
-    state = BandConnectionState.scanning;
-    notifyListeners();
+    final generation = ++_scanGeneration;
+    try {
+      await requestPermissions();
+      if (generation != _scanGeneration || _disposed) return;
+      await FlutterBluePlus.stopScan();
+      scanResults.clear();
+      _scanCandidates.clear();
+      try {
+        _rememberedRemoteVariants = await _variantStore
+            .confirmedRemoteDevices();
+      } catch (_) {
+        _rememberedRemoteVariants = const {};
+      }
+      statusMessage = 'Scanning for nearby Bluetooth devices...';
+      state = BandConnectionState.scanning;
+      notifyListeners();
 
-    await _scanSub?.cancel();
-    _scanSub = FlutterBluePlus.scanResults.listen((results) {
-      scanResults
-        ..clear()
-        ..addAll(
-          results.map((r) {
-            final advertised = r.advertisementData.serviceUuids
-                .map((g) => g.str.toLowerCase())
-                .contains(V8Protocol.serviceUuid);
-            final name = r.device.platformName.isNotEmpty
-                ? r.device.platformName
-                : r.advertisementData.advName.isNotEmpty
-                ? r.advertisementData.advName
-                : r.device.remoteId.str;
-            return ScannedBand(
-              device: r.device,
-              name: name,
-              rssi: r.rssi,
-              hasV8Service: advertised,
-              likelyBand: _isLikelyBand(name, advertised),
-            );
-          }),
-        );
-      scanResults.sort((a, b) {
-        final byLikely = (b.likelyBand ? 1 : 0) - (a.likelyBand ? 1 : 0);
-        if (byLikely != 0) return byLikely;
-        return b.rssi.compareTo(a.rssi);
+      await _scanSub?.cancel();
+      _scanSub = FlutterBluePlus.scanResults.listen((results) {
+        if (generation != _scanGeneration || _disposed) return;
+        for (final result in results) {
+          final id = result.device.remoteId.str.toLowerCase();
+          final previous = _scanCandidates[id];
+          final advertised =
+              previous?.hasV8Service == true ||
+              result.advertisementData.serviceUuids.any(
+                (uuid) =>
+                    V8Protocol.uuidMatches(uuid.str, V8Protocol.serviceUuid),
+              );
+          final reportedName = result.device.platformName.trim().isNotEmpty
+              ? result.device.platformName.trim()
+              : result.advertisementData.advName.trim();
+          final name = reportedName.isNotEmpty
+              ? reportedName
+              : previous?.name ?? '';
+          _scanCandidates[id] = ScannedBand(
+            device: result.device,
+            name: name,
+            rssi: result.rssi,
+            hasV8Service: advertised,
+            hasNameHint: ScannedBand.hasWatchNameHint(name),
+            rememberedVariant: _rememberedRemoteVariants[id],
+          );
+        }
+        scanResults
+          ..clear()
+          ..addAll(_scanCandidates.values);
+        scanResults.sort((a, b) {
+          final byMatch = b.matchRank.compareTo(a.matchRank);
+          if (byMatch != 0) return byMatch;
+          return (b.rssi == 0 ? -999 : b.rssi).compareTo(
+            a.rssi == 0 ? -999 : a.rssi,
+          );
+        });
+        notifyListeners();
       });
-      notifyListeners();
-    });
 
-    // Do not use withServices: many JCV8 bands expose FFF0 only after connect.
-    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 12));
-
-    await Future<void>.delayed(const Duration(seconds: 12));
-    await FlutterBluePlus.stopScan();
-    await _scanSub?.cancel();
-    _scanSub = null;
-    if (state == BandConnectionState.scanning) {
-      state = BandConnectionState.idle;
-      statusMessage = scanResults.isEmpty
-          ? 'No devices found. Keep the bracelet near the phone.'
-          : jcv8OnlyFilter && visibleScanResults.isEmpty
-          ? 'No likely bracelets in filter. Turn off "Likely bands only".'
-          : 'Found ${visibleScanResults.isEmpty ? scanResults.length : visibleScanResults.length} device(s). Tap one to connect.';
-      notifyListeners();
+      // Do not filter by service: some watches expose FFF0 only after connect.
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 12));
+      await Future<void>.delayed(const Duration(seconds: 12));
+    } catch (error) {
+      if (generation == _scanGeneration && !_disposed) {
+        state = BandConnectionState.error;
+        statusMessage = 'Bluetooth scan failed: $error';
+        notifyListeners();
+      }
+    } finally {
+      if (generation == _scanGeneration) {
+        try {
+          await FlutterBluePlus.stopScan();
+        } catch (_) {}
+        await _scanSub?.cancel();
+        _scanSub = null;
+        if (state == BandConnectionState.scanning) {
+          state = BandConnectionState.idle;
+          statusMessage = scanResults.isEmpty
+              ? 'No nearby Bluetooth devices found.'
+              : 'Found ${scanResults.length} nearby Bluetooth device(s).';
+          notifyListeners();
+        }
+      }
     }
   }
 
   Future<void> connect(BluetoothDevice device) async {
+    _scanGeneration++;
     await FlutterBluePlus.stopScan();
+    await _scanSub?.cancel();
+    _scanSub = null;
     await disconnect();
     final generation = ++_connectionGeneration;
     final remoteId = device.remoteId.str;
@@ -351,7 +379,9 @@ class V8BandService extends ChangeNotifier {
 
       // Auto-start live metrics and sleep sync after a short stabilization delay.
       Future<void>.delayed(const Duration(milliseconds: 400)).then((_) async {
-        if (!_ready || generation != _connectionGeneration || !variantConfirmed) {
+        if (!_ready ||
+            generation != _connectionGeneration ||
+            !variantConfirmed) {
           return;
         }
         try {

@@ -17,6 +17,10 @@ void main() {
     final nextLaunch = BandVariantStore();
     expect(await nextLaunch.findByRemoteId('watch-a'), BandVariant.legacyV8);
     expect(await nextLaunch.findByRemoteId('watch-b'), BandVariant.jc2208a);
+    expect(await nextLaunch.confirmedRemoteDevices(), {
+      'watch-a': BandVariant.legacyV8,
+      'watch-b': BandVariant.jc2208a,
+    });
     expect(
       await nextLaunch.findByMac('aa:bb:cc:dd:ee:02'),
       BandVariant.jc2208a,
@@ -27,5 +31,8 @@ void main() {
     expect(await nextLaunch.findByRemoteId('watch-a'), isNull);
     expect(await nextLaunch.findByMac('AA:BB:CC:DD:EE:01'), isNull);
     expect(await nextLaunch.findByRemoteId('watch-b'), BandVariant.jc2208a);
+    expect(await nextLaunch.confirmedRemoteDevices(), {
+      'watch-b': BandVariant.jc2208a,
+    });
   });
 }
