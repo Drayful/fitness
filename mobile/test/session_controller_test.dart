@@ -8,6 +8,8 @@ import 'package:fitness_app/api/api_client.dart';
 import 'package:fitness_app/api/session_controller.dart';
 import 'package:fitness_app/band/workout_model.dart';
 import 'package:fitness_app/band/sleep_model.dart';
+import 'package:fitness_app/band/band_variant.dart';
+import 'package:fitness_app/band/v8_protocol.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -146,4 +148,62 @@ void main() {
     expect(posted.last, '/api/measurements/sleep');
     session.dispose();
   });
+
+  test(
+    'vitals remain queued offline and manual sync clears the queue',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues({
+        'auth_token': 'token-vitals',
+        'auth_user_email': 'vitals@example.com',
+      });
+      var online = false;
+      final posted = <Map<String, dynamic>>[];
+      final session = SessionController(
+        api: ApiClient(
+          baseUrl: 'https://example.test',
+          client: MockClient((req) async {
+            if (req.method == 'GET') {
+              final body = req.url.path.endsWith('/heart-rate/recent')
+                  ? '{"average_bpm":74,"count":1,"samples":[]}'
+                  : req.url.path.endsWith('/vitals/recent')
+                  ? '{"snapshots":[]}'
+                  : req.url.path.endsWith('/sleep/recent')
+                  ? '{"observations":[]}'
+                  : '{"data":[]}';
+              return http.Response(
+                body,
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+            posted.add(jsonDecode(req.body) as Map<String, dynamic>);
+            return http.Response(
+              online ? '{"snapshot":{}}' : '{"message":"offline"}',
+              online ? 201 : 503,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+      await session.load();
+      await expectLater(
+        session.uploadVitals(
+          const LiveVitals(steps: 123, heartRate: 74, spo2: 98),
+          DateTime.utc(2026, 9, 18, 10),
+          model: BandVariant.jc2208a,
+        ),
+        throwsA(isA<ApiException>()),
+      );
+      expect(session.pendingUploadCount, 1);
+      online = true;
+      await session.synchronize();
+      expect(session.pendingUploadCount, 0);
+      expect(posted, hasLength(2));
+      expect(posted[0]['client_id'], posted[1]['client_id']);
+      expect(posted[1]['device_model'], 'jc2208a');
+      expect(posted[1]['spo2'], 98);
+      session.dispose();
+    },
+  );
 }

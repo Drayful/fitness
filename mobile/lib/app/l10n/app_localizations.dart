@@ -36,7 +36,7 @@ class AppLocalizations {
   static const Map<String, Map<String, String>> _data = {
     'en': {
       'workout_last_hr': 'LAST HR',
-      'no_workouts': 'No workouts recorded in this session yet.',
+      'no_workouts': 'No saved workouts yet.',
       'retry': 'Retry',
       'data_unavailable': 'No data',
       'scores_pending':
@@ -64,8 +64,10 @@ class AppLocalizations {
       'heart_rate': 'HEART RATE',
       'avg_last_10_hr': 'Average of last 10 saved HR readings',
       'saved_history': 'Saved history',
-      'workouts_saved': 'Workouts',
-      'sleep_records_saved': 'Sleep observations',
+      'pending_uploads': 'Waiting to sync',
+      'duration_minutes': 'min',
+      'workouts_saved': 'Recent workouts',
+      'sleep_records_saved': 'Recent sleep observations',
       'saved_measurements': 'Recent measurements',
       'no_saved_measurements':
           'No saved measurements yet. Connect your watch to collect data.',
@@ -186,7 +188,7 @@ class AppLocalizations {
     },
     'ru': {
       'workout_last_hr': 'ПОСЛЕДНИЙ ПУЛЬС',
-      'no_workouts': 'В этой сессии пока нет записанных тренировок.',
+      'no_workouts': 'Пока нет сохранённых тренировок.',
       'retry': 'Повторить',
       'data_unavailable': 'Нет данных',
       'scores_pending':
@@ -214,8 +216,10 @@ class AppLocalizations {
       'heart_rate': 'ПУЛЬС',
       'avg_last_10_hr': 'Среднее из последних 10 сохранённых измерений',
       'saved_history': 'Сохранённая история',
-      'workouts_saved': 'Тренировки',
-      'sleep_records_saved': 'Наблюдения сна',
+      'pending_uploads': 'Ожидают отправки',
+      'duration_minutes': 'мин',
+      'workouts_saved': 'Недавние тренировки',
+      'sleep_records_saved': 'Недавние наблюдения сна',
       'saved_measurements': 'Последние измерения',
       'no_saved_measurements':
           'Пока нет измерений. Подключите часы, чтобы начать запись.',
@@ -336,7 +340,7 @@ class AppLocalizations {
     },
     'kk': {
       'workout_last_hr': 'СОҢҒЫ ПУЛЬС',
-      'no_workouts': 'Бұл сеанста жаттығулар әлі жазылған жоқ.',
+      'no_workouts': 'Әзірге сақталған жаттығулар жоқ.',
       'retry': 'Қайталау',
       'data_unavailable': 'Деректер жоқ',
       'scores_pending':
@@ -364,8 +368,10 @@ class AppLocalizations {
       'heart_rate': 'ПУЛЬС',
       'avg_last_10_hr': 'Сақталған соңғы 10 өлшемнің орташа мәні',
       'saved_history': 'Сақталған тарих',
-      'workouts_saved': 'Жаттығулар',
-      'sleep_records_saved': 'Ұйқы жазбалары',
+      'pending_uploads': 'Жіберуді күтуде',
+      'duration_minutes': 'мин',
+      'workouts_saved': 'Соңғы жаттығулар',
+      'sleep_records_saved': 'Соңғы ұйқы жазбалары',
       'saved_measurements': 'Соңғы өлшемдер',
       'no_saved_measurements':
           'Әзірге өлшемдер жоқ. Жазу үшін сағатты қосыңыз.',

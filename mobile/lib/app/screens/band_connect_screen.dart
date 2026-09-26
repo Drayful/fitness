@@ -163,7 +163,10 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                       children: [
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: service.isLiveHrActive
+                            onPressed:
+                                service.isStartingLive ||
+                                    service.isLiveHrActive ||
+                                    !service.variantConfirmed
                                 ? null
                                 : () async {
                                     try {
@@ -231,7 +234,7 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                       label: 'Protocol',
                       value: service.variantConfirmed
                           ? service.variant.label
-                          : '${service.variant.label} (assumed)',
+                          : 'Model not selected',
                     ),
                     const SizedBox(height: 8),
                     DropdownButton<BandVariant>(
@@ -246,13 +249,13 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                           )
                           .toList(),
                       onChanged:
-                          service.isWorkoutActive || service.isSleepSyncing
+                          service.isWorkoutActive ||
+                              service.isSleepSyncing ||
+                              service.isStartingLive
                           ? null
                           : (value) async {
                               try {
-                                await service.stopLiveHeartRate();
                                 await service.overrideVariant(value);
-                                await service.startLiveHeartRate();
                               } catch (error) {
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(

@@ -35,14 +35,19 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     _bandService.addListener(_saveVitals);
     _bandService.addListener(_saveSleep);
     _session.addListener(_saveSleep);
+    unawaited(_localeController.load());
     _session.load();
   }
 
   void _saveVitals() {
     final vitals = _bandService.liveVitals;
     final measuredAt = _bandService.liveVitalsAt;
-    if (!_session.isAuthenticated || vitals == null || measuredAt == null)
+    if (!_session.isAuthenticated ||
+        !_bandService.variantConfirmed ||
+        vitals == null ||
+        measuredAt == null) {
       return;
+    }
     if (_lastHeartRateUploadAt != null &&
         measuredAt.difference(_lastHeartRateUploadAt!) <
             const Duration(seconds: 30)) {
@@ -93,7 +98,9 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.resumed && _session.isAuthenticated) {
+      unawaited(_session.synchronize().catchError((_) {}));
+    } else if (state == AppLifecycleState.detached) {
       unawaited(_bandService.disconnect());
     }
   }

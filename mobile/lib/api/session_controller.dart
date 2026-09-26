@@ -20,12 +20,14 @@ class SessionController extends ChangeNotifier {
   final _storage = const FlutterSecureStorage();
   bool _disposed = false;
   int _sessionGeneration = 0;
+  int _pendingCountRequest = 0;
   Future<void> _uploadSerial = Future.value();
   double? averageHeartRate;
   int heartRateSampleCount = 0;
   List<WorkoutSummary> savedWorkouts = const [];
   List<Map<String, dynamic>> savedSleepObservations = const [];
   List<Map<String, dynamic>> recentVitals = const [];
+  int pendingUploadCount = 0;
 
   @override
   void notifyListeners() {
@@ -61,6 +63,7 @@ class SessionController extends ChangeNotifier {
       userName = savedName;
       userEmail = savedEmail;
       api.token = _token;
+      unawaited(refreshPendingUploadCount().catchError((_) {}));
       unawaited(retryPendingWorkouts().catchError((_) {}));
       unawaited(retryPendingMeasurements().catchError((_) {}));
       unawaited(refreshHistory().catchError((_) {}));
@@ -107,6 +110,7 @@ class SessionController extends ChangeNotifier {
     savedWorkouts = const [];
     savedSleepObservations = const [];
     recentVitals = const [];
+    pendingUploadCount = 0;
     try {
       await _storage.delete(key: _tokenKey);
       await _storage.delete(key: _userNameKey);
@@ -132,6 +136,7 @@ class SessionController extends ChangeNotifier {
     await _storage.write(key: _userNameKey, value: userName);
     await _storage.write(key: _userEmailKey, value: userEmail);
     notifyListeners();
+    unawaited(refreshPendingUploadCount().catchError((_) {}));
     unawaited(retryPendingWorkouts().catchError((_) {}));
     unawaited(retryPendingMeasurements().catchError((_) {}));
     unawaited(refreshHistory().catchError((_) {}));
@@ -184,6 +189,7 @@ class SessionController extends ChangeNotifier {
           !pending.any((e) => e['client_id'] == incoming['client_id'])) {
         pending.add(incoming);
         await _storage.write(key: key, value: jsonEncode(pending));
+        await refreshPendingUploadCount();
       }
       while (pending.isNotEmpty) {
         if (generation != _sessionGeneration || _disposed) return;
@@ -198,6 +204,7 @@ class SessionController extends ChangeNotifier {
         );
         pending.removeAt(0);
         await _storage.write(key: key, value: jsonEncode(pending));
+        await refreshPendingUploadCount();
         unawaited(refreshWorkouts().catchError((_) {}));
       }
     });
@@ -304,6 +311,38 @@ class SessionController extends ChangeNotifier {
     ]);
   }
 
+  /// Retry both account-scoped queues and then reload saved server history.
+  Future<void> synchronize() async {
+    await Future.wait([retryPendingWorkouts(), retryPendingMeasurements()]);
+    await refreshHistory();
+  }
+
+  Future<void> refreshPendingUploadCount() async {
+    final email = userEmail;
+    final generation = _sessionGeneration;
+    final request = ++_pendingCountRequest;
+    if (!isAuthenticated || email == null) return;
+    final encoded = Uri.encodeComponent(email);
+    final values = await Future.wait([
+      _storage.read(key: 'pending_workouts_$encoded'),
+      _storage.read(key: 'pending_measurements_$encoded'),
+    ]);
+    if (generation != _sessionGeneration ||
+        request != _pendingCountRequest ||
+        _disposed) {
+      return;
+    }
+    var count = 0;
+    for (final value in values) {
+      if (value == null) continue;
+      final decoded = jsonDecode(value);
+      if (decoded is List) count += decoded.length;
+    }
+    if (pendingUploadCount == count) return;
+    pendingUploadCount = count;
+    notifyListeners();
+  }
+
   Future<void> refreshVitals() async {
     if (!isAuthenticated) return;
     final generation = _sessionGeneration;
@@ -350,6 +389,7 @@ class SessionController extends ChangeNotifier {
           !pending.any((e) => e['client_id'] == incoming['client_id'])) {
         pending.add(incoming);
         await _storage.write(key: key, value: jsonEncode(pending));
+        await refreshPendingUploadCount();
       }
       while (pending.isNotEmpty) {
         if (generation != _sessionGeneration || _disposed) return;
@@ -386,6 +426,7 @@ class SessionController extends ChangeNotifier {
         }
         pending.removeAt(0);
         await _storage.write(key: key, value: jsonEncode(pending));
+        await refreshPendingUploadCount();
       }
     });
     _uploadSerial = operation.catchError((_) {});

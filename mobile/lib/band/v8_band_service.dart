@@ -95,6 +95,7 @@ class V8BandService extends ChangeNotifier {
   Timer? _workoutHeartbeat;
   bool jcv8OnlyFilter = false;
   bool isLiveHrActive = false;
+  bool get isStartingLive => _startingLive;
   LiveVitals? liveVitals;
   String? liveHrStatus;
   SleepSummary? sleepSummary;
@@ -133,8 +134,14 @@ class V8BandService extends ChangeNotifier {
   /// Confirms the SDK family for this device. Passing null clears confirmation.
   Future<void> overrideVariant(BandVariant? value) async {
     if (isWorkoutActive || isSleepSyncing) return;
+    if (_startingLive) {
+      throw StateError('Wait for live measurements to start');
+    }
     final id = _device?.remoteId.str;
     if (id == null) return;
+    if (isLiveHrActive) {
+      await stopLiveHeartRate();
+    }
     if (value == null) {
       _deviceVariants.remove(id);
     } else {
@@ -148,10 +155,18 @@ class V8BandService extends ChangeNotifier {
     }
     sleepSummary = null;
     sleepRecords = const [];
+    liveVitals = null;
+    liveVitalsAt = null;
     notifyListeners();
     await _variantStore.remember(id, deviceInfo?.mac, value);
     if (value != null && _ready) {
       _scheduleSleepSync(_connectionGeneration);
+      try {
+        await startLiveHeartRate();
+      } catch (_) {
+        statusMessage = 'Model saved, but live measurements could not start.';
+        notifyListeners();
+      }
     }
   }
 
@@ -336,7 +351,9 @@ class V8BandService extends ChangeNotifier {
 
       // Auto-start live metrics and sleep sync after a short stabilization delay.
       Future<void>.delayed(const Duration(milliseconds: 400)).then((_) async {
-        if (!_ready || generation != _connectionGeneration) return;
+        if (!_ready || generation != _connectionGeneration || !variantConfirmed) {
+          return;
+        }
         try {
           await startLiveHeartRate();
         } catch (_) {}
@@ -434,6 +451,7 @@ class V8BandService extends ChangeNotifier {
 
   Future<void> startLiveHeartRate() async {
     if (!_ready) throw StateError('Bracelet is not connected');
+    if (!variantConfirmed) throw StateError('Select the watch model first');
     if (_startingLive || isLiveHrActive || isWorkoutActive) return;
     _startingLive = true;
     try {
@@ -470,6 +488,7 @@ class V8BandService extends ChangeNotifier {
       notifyListeners();
     } finally {
       _startingLive = false;
+      notifyListeners();
     }
   }
 
@@ -620,6 +639,7 @@ class V8BandService extends ChangeNotifier {
 
     // Live vitals stream (0x09 packets).
     if (cmd == V8Protocol.cmdRealtime && bytes.length >= 24) {
+      if (!variantConfirmed) return;
       final vitals = V8Protocol.parseLivePacket(bytes);
       if (vitals != null) {
         _pending.remove(cmd)?.complete(bytes);
