@@ -57,7 +57,7 @@ class ProfileScreen extends StatelessWidget {
     );
     if (confirmed == true && context.mounted) {
       final band = BandServiceScope.of(context);
-      await band.disconnect();
+      await band.forgetDevice();
       band.workoutHistory.clear();
       await session.logout();
       // AuthGate rebuilds and shows the login screen automatically.

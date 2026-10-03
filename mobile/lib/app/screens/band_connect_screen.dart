@@ -126,7 +126,7 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                   width: double.infinity,
                   child: connected
                       ? OutlinedButton.icon(
-                          onPressed: () => service.disconnect(),
+                          onPressed: () => service.forgetDevice(),
                           icon: const Icon(Icons.bluetooth_disabled),
                           label: Text(l.t('watch_disconnect')),
                         )

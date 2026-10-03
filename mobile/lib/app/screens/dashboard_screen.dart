@@ -44,7 +44,15 @@ class DashboardScreen extends StatelessWidget {
             : '--';
         final battStr = battery != null ? '$battery' : '--';
 
-        return ListView(
+        // Pull down to fetch fresh readings from the watch and the server.
+        return RefreshIndicator(
+          onRefresh: () => Future.wait([
+            band.refresh().catchError((_) {}),
+            if (session.isAuthenticated)
+              session.synchronize().catchError((_) {}),
+          ]),
+          child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
           children: [
             // Header
@@ -357,6 +365,7 @@ class DashboardScreen extends StatelessWidget {
               _ConnectPrompt(l: l, c: c),
             ],
           ],
+          ),
         );
       },
     );

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'band_variant.dart';
 import 'band_variant_store.dart';
@@ -101,6 +102,36 @@ class V8BandService extends ChangeNotifier {
   List<SleepRecord> sleepRecords = const [];
   String? sleepSyncError;
 
+  // ── Background refresh & auto-reconnect ──
+  //
+  // A 0x28 measurement is a one-shot session on the band (60 s on legacy
+  // firmware), and sleep/battery are only answered on request. Without a loop
+  // that re-asks, every value froze at whatever the first connect produced.
+  static const _lastDeviceKey = 'last_band_remote_id_v1';
+  static const _refreshTick = Duration(seconds: 30);
+  static const _measurementInterval = Duration(minutes: 2);
+  static const _liveStreamStaleAfter = Duration(seconds: 75);
+  static const _batteryInterval = Duration(minutes: 5);
+  static const _sleepInterval = Duration(minutes: 30);
+  static const _reconnectBackoff = [2, 5, 10, 20, 30, 60];
+
+  Timer? _refreshTimer;
+  Timer? _reconnectTimer;
+  StreamSubscription<BluetoothAdapterState>? _adapterSub;
+  bool _refreshing = false;
+  DateTime? _lastMeasureArmAt;
+  DateTime? _lastBatteryAt;
+  DateTime? _lastSleepSyncAt;
+
+  /// The watch to reconnect to on launch and after a dropped link. Cleared
+  /// only by [forgetDevice], i.e. when the user disconnects on purpose.
+  String? _rememberedDeviceId;
+  int _reconnectAttempt = 0;
+  bool _autoReconnecting = false;
+
+  bool get hasRememberedDevice => _rememberedDeviceId != null;
+  bool get isAutoReconnecting => _autoReconnecting;
+
   @override
   void notifyListeners() {
     if (!_disposed) super.notifyListeners();
@@ -183,21 +214,104 @@ class V8BandService extends ChangeNotifier {
     }
   }
 
+  static bool _bleOptionsSet = false;
+  bool _locationAskedThisSession = false;
+
+  /// Must run before any other FlutterBluePlus call: on iOS the options are
+  /// read once, when the plugin creates its CBCentralManager.
+  static Future<void> applyBleOptions() async {
+    if (_bleOptionsSet || kIsWeb) return;
+    _bleOptionsSet = true;
+    try {
+      // We show our own "Bluetooth is off" state instead of the iOS alert.
+      await FlutterBluePlus.setOptions(
+        showPowerAlert: false,
+      ).timeout(const Duration(seconds: 2));
+    } catch (_) {}
+  }
+
+  /// Asks only for what is still missing, so the system dialogs do not pop up
+  /// on every scan, launch and reconnect.
+  ///
+  /// iOS: no explicit request at all — CoreBluetooth shows its own permission
+  /// prompt on first use. permission_handler's request opened a second
+  /// CBCentralManager, which re-showed the "Turn on Bluetooth" alert each time.
+  ///
+  /// Android 12+: BLUETOOTH_SCAN is declared `neverForLocation` and location is
+  /// capped at API 30 in the manifest, so the location prompt is gone there.
+  /// On Android ≤ 11 it is still required for scanning, but asked at most once
+  /// per session and never again once the user chose "Don't ask again".
   Future<void> requestPermissions() async {
     if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) return;
 
-    if (Platform.isIOS) {
-      await Permission.bluetooth.request();
-      return;
-    }
-    final permissions = <Permission>[
+    await applyBleOptions();
+    if (Platform.isIOS) return;
+
+    final missing = <Permission>[];
+    for (final p in const [
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
-    ];
-    if (Platform.isAndroid) {
-      permissions.add(Permission.locationWhenInUse);
+    ]) {
+      final status = await p.status;
+      if (!status.isGranted && !status.isPermanentlyDenied) missing.add(p);
     }
-    await permissions.request();
+
+    if (!_locationAskedThisSession) {
+      final location = await Permission.locationWhenInUse.status;
+      if (!location.isGranted && !location.isPermanentlyDenied) {
+        _locationAskedThisSession = true;
+        missing.add(Permission.locationWhenInUse);
+      }
+    }
+
+    if (missing.isNotEmpty) await missing.request();
+  }
+
+  /// A watch that is still linked to the phone at OS level — left over from a
+  /// killed app process, or held by the system — stops advertising, so a scan
+  /// never sees it. That is what toggling Bluetooth used to "fix". Ask the OS
+  /// for such devices directly and list them alongside the scan results.
+  Future<void> _addSystemConnectedWatches() async {
+    try {
+      final devices = await FlutterBluePlus.systemDevices([
+        Guid(V8Protocol.serviceUuid),
+      ]).timeout(const Duration(seconds: 3));
+      for (final device in devices) {
+        final id = device.remoteId.str.toLowerCase();
+        final name = device.platformName.trim();
+        _scanCandidates[id] = ScannedBand(
+          device: device,
+          name: name,
+          rssi: 0,
+          hasV8Service: true,
+          hasNameHint: ScannedBand.hasWatchNameHint(name),
+          rememberedVariant: _rememberedRemoteVariants[id],
+        );
+      }
+      if (devices.isNotEmpty) {
+        scanResults
+          ..clear()
+          ..addAll(_scanCandidates.values);
+        notifyListeners();
+      }
+    } catch (_) {
+      // Not supported on this platform/version; the regular scan still runs.
+    }
+  }
+
+  /// True when BLE can be used right now; otherwise surfaces a status message
+  /// instead of triggering a system "turn on Bluetooth" prompt.
+  bool _ensureAdapterOn() {
+    final adapter = FlutterBluePlus.adapterStateNow;
+    // `unknown` right after launch means "not reported yet", not "off".
+    if (adapter == BluetoothAdapterState.on ||
+        adapter == BluetoothAdapterState.unknown) {
+      return true;
+    }
+    state = BandConnectionState.idle;
+    statusMessage = 'Bluetooth is off. Turn it on to connect the watch.';
+    notifyListeners();
+    return false;
   }
 
   Future<void> startScan() async {
@@ -205,6 +319,7 @@ class V8BandService extends ChangeNotifier {
     try {
       await requestPermissions();
       if (generation != _scanGeneration || _disposed) return;
+      if (!_ensureAdapterOn()) return;
       await FlutterBluePlus.stopScan();
       scanResults.clear();
       _scanCandidates.clear();
@@ -214,6 +329,7 @@ class V8BandService extends ChangeNotifier {
       } catch (_) {
         _rememberedRemoteVariants = const {};
       }
+      await _addSystemConnectedWatches();
       statusMessage = 'Scanning for nearby Bluetooth devices...';
       state = BandConnectionState.scanning;
       notifyListeners();
@@ -286,6 +402,7 @@ class V8BandService extends ChangeNotifier {
   }
 
   Future<void> connect(BluetoothDevice device) async {
+    if (!_ensureAdapterOn()) return;
     _scanGeneration++;
     await FlutterBluePlus.stopScan();
     await _scanSub?.cancel();
@@ -310,10 +427,7 @@ class V8BandService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await device.connect(
-        timeout: const Duration(seconds: 15),
-        autoConnect: false,
-      );
+      await _connectLink(device);
       _connectionSub = device.connectionState.listen((s) {
         if (s == BluetoothConnectionState.disconnected) {
           if (generation == _connectionGeneration) {
@@ -329,17 +443,28 @@ class V8BandService extends ChangeNotifier {
         // Some phones reject MTU negotiation; continue anyway.
       }
 
-      final services = await _discoverServicesWithRetry(device);
+      var services = await _discoverServicesWithRetry(device);
+      BluetoothService? findV8() {
+        for (final s in services) {
+          if (V8Protocol.uuidMatches(s.uuid.str, V8Protocol.serviceUuid)) {
+            return s;
+          }
+        }
+        return null;
+      }
+
+      var v8Service = findV8();
+      if (v8Service == null && Platform.isAndroid) {
+        // Android caches a device's GATT table across connections; a stale
+        // cache hides FFF0 until Bluetooth is toggled. Drop it and rediscover.
+        try {
+          await device.clearGattCache();
+          services = await _discoverServicesWithRetry(device);
+          v8Service = findV8();
+        } catch (_) {}
+      }
       lastDiscoveredServices = services.map((s) => s.uuid.str).toList();
       notifyListeners();
-
-      BluetoothService? v8Service;
-      for (final s in services) {
-        if (V8Protocol.uuidMatches(s.uuid.str, V8Protocol.serviceUuid)) {
-          v8Service = s;
-          break;
-        }
-      }
       if (v8Service == null) {
         final found = lastDiscoveredServices
             .map(V8Protocol.shortLabel)
@@ -377,6 +502,11 @@ class V8BandService extends ChangeNotifier {
           : 'Connected. Select the watch model once to sync sleep and train.';
       notifyListeners();
 
+      _reconnectAttempt = 0;
+      _autoReconnecting = false;
+      unawaited(_rememberDevice(remoteId));
+      _startRefreshLoop();
+
       // Auto-start live metrics and sleep sync after a short stabilization delay.
       Future<void>.delayed(const Duration(milliseconds: 400)).then((_) async {
         if (!_ready ||
@@ -390,11 +520,231 @@ class V8BandService extends ChangeNotifier {
       });
       if (variantConfirmed) _scheduleSleepSync(generation);
     } catch (e) {
+      final wasAutoReconnect = _autoReconnecting;
       state = BandConnectionState.error;
-      statusMessage = 'Connection failed: $e';
+      statusMessage = wasAutoReconnect
+          ? 'Watch not reachable. Retrying automatically…'
+          : 'Connection failed: $e';
       notifyListeners();
       await disconnect();
+      if (wasAutoReconnect) _scheduleReconnect();
     }
+  }
+
+  // ── Auto-reconnect ─────────────────────────────────────────────────────────
+
+  /// Reconnects to the watch used last time, without a scan. Call once on
+  /// launch; it is a no-op until a watch has been connected successfully.
+  Future<void> restoreLastDevice() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _rememberedDeviceId = prefs.getString(_lastDeviceKey);
+    } catch (_) {
+      _rememberedDeviceId = null;
+    }
+    if (_rememberedDeviceId == null || _disposed) return;
+    notifyListeners();
+
+    // Reconnect as soon as Bluetooth comes (back) on, not only at launch.
+    await _adapterSub?.cancel();
+    _adapterSub = FlutterBluePlus.adapterState.listen((s) {
+      if (s == BluetoothAdapterState.on) {
+        _reconnectAttempt = 0;
+        unawaited(_attemptReconnect());
+      }
+    });
+
+    try {
+      await requestPermissions();
+    } catch (_) {}
+    await _attemptReconnect();
+  }
+
+  /// User-initiated disconnect: drops the link and stops reconnecting to this
+  /// watch until one is connected again.
+  Future<void> forgetDevice() async {
+    _rememberedDeviceId = null;
+    _autoReconnecting = false;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_lastDeviceKey);
+    } catch (_) {}
+    await disconnect();
+  }
+
+  Future<void> _rememberDevice(String remoteId) async {
+    _rememberedDeviceId = remoteId;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_lastDeviceKey, remoteId);
+    } catch (_) {}
+  }
+
+  void _scheduleReconnect() {
+    if (_disposed || _rememberedDeviceId == null) return;
+    if (state == BandConnectionState.connecting ||
+        state == BandConnectionState.connected) {
+      return;
+    }
+    _reconnectTimer?.cancel();
+    final step = _reconnectAttempt < _reconnectBackoff.length
+        ? _reconnectAttempt
+        : _reconnectBackoff.length - 1;
+    _reconnectTimer = Timer(
+      Duration(seconds: _reconnectBackoff[step]),
+      () => unawaited(_attemptReconnect()),
+    );
+  }
+
+  Future<void> _attemptReconnect() async {
+    final id = _rememberedDeviceId;
+    if (id == null || _disposed) return;
+    // Never fight a scan or a connection the user started by hand.
+    if (state == BandConnectionState.connecting ||
+        state == BandConnectionState.connected ||
+        state == BandConnectionState.scanning) {
+      return;
+    }
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+
+    final adapter = FlutterBluePlus.adapterStateNow;
+    if (adapter != BluetoothAdapterState.on) {
+      // The adapter listener retries the moment Bluetooth reports "on".
+      // `unknown` just means it has not reported yet (early in launch).
+      if (adapter != BluetoothAdapterState.unknown) {
+        statusMessage = 'Bluetooth is off. Will reconnect when it is on.';
+        notifyListeners();
+      }
+      return;
+    }
+
+    _reconnectAttempt++;
+    _autoReconnecting = true;
+    notifyListeners();
+    // Connecting by stored id works without a scan: Android keeps the MAC,
+    // iOS the peripheral UUID it handed out on the first connection.
+    await connect(BluetoothDevice.fromId(id));
+  }
+
+  // ── Periodic refresh ───────────────────────────────────────────────────────
+
+  /// Pull fresh data from the watch now: re-arms HR/SpO2, re-reads battery,
+  /// re-syncs sleep. If the watch is not connected, tries to reconnect.
+  Future<void> refresh() async {
+    if (!_ready) {
+      _reconnectAttempt = 0;
+      await _attemptReconnect();
+      return;
+    }
+    await _refreshTickHandler(force: true);
+  }
+
+  /// Called when the app returns to the foreground.
+  Future<void> onAppResumed() => refresh();
+
+  void _startRefreshLoop() {
+    _stopRefreshLoop();
+    final now = DateTime.now();
+    // The connect sequence itself just armed measurements and reads battery
+    // and sleep, so count those as fresh.
+    _lastMeasureArmAt = now;
+    _lastBatteryAt = now;
+    _lastSleepSyncAt = now;
+    _refreshTimer = Timer.periodic(
+      _refreshTick,
+      (_) => unawaited(_refreshTickHandler()),
+    );
+  }
+
+  void _stopRefreshLoop() {
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+  }
+
+  Future<void> _refreshTickHandler({bool force = false}) async {
+    if (!_ready || _refreshing || _disposed || !variantConfirmed) return;
+    // A workout owns the link: 0x28/0x09 would collide with its 0x18 stream.
+    if (isWorkoutActive || _startingLive) return;
+    _refreshing = true;
+    final generation = _connectionGeneration;
+    try {
+      final now = DateTime.now();
+      bool due(DateTime? last, Duration every) =>
+          force || last == null || now.difference(last) >= every;
+
+      final streamStale = liveVitalsAt == null ||
+          now.difference(liveVitalsAt!) >= _liveStreamStaleAfter;
+      if (due(_lastMeasureArmAt, _measurementInterval) || streamStale) {
+        await _rearmMeasurements(restartStream: streamStale || force);
+        _lastMeasureArmAt = DateTime.now();
+      }
+      if (generation != _connectionGeneration) return;
+
+      if (due(_lastBatteryAt, _batteryInterval)) {
+        await _refreshBattery();
+        _lastBatteryAt = DateTime.now();
+      }
+      if (generation != _connectionGeneration) return;
+
+      if (due(_lastSleepSyncAt, _sleepInterval) && !isSleepSyncing) {
+        _lastSleepSyncAt = DateTime.now();
+        await syncSleepData();
+      }
+    } catch (_) {
+      // Best effort; the next tick tries again.
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  /// Starts a new HR/SpO2 measurement session. [startLiveHeartRate] cannot be
+  /// reused: it bails out while [isLiveHrActive] is set, which is exactly the
+  /// state left behind once the band's own session has timed out.
+  Future<void> _rearmMeasurements({required bool restartStream}) async {
+    if (!_ready || isWorkoutActive) return;
+    if (!isLiveHrActive) {
+      await startLiveHeartRate();
+      return;
+    }
+    for (final mode in const [
+      V8Protocol.measureHeartRate,
+      V8Protocol.measureSpO2,
+    ]) {
+      await sendCommand(
+        V8Protocol.cmdMeasure,
+        V8Protocol.measurePayload(
+          mode: mode,
+          start: true,
+          durationSec: 60,
+          variant: variant,
+        ),
+      );
+    }
+    if (restartStream) {
+      await sendCommand(
+        V8Protocol.cmdRealtime,
+        V8Protocol.realtimePayload(enable: true, variant: variant),
+      );
+    }
+  }
+
+  Future<void> _refreshBattery() async {
+    final info = deviceInfo;
+    if (!_ready || info == null) return;
+    final battery = await sendCommand(V8Protocol.cmdBattery);
+    final percent = V8Protocol.parseBatteryPercent(battery);
+    if (percent == null) return;
+    deviceInfo = BandDeviceInfo(
+      name: info.name,
+      mac: info.mac,
+      batteryPercent: percent,
+      isCharging: battery.length > 2 && battery[2] == 1,
+      firmware: info.firmware,
+    );
+    notifyListeners();
   }
 
   void _scheduleSleepSync(int generation) {
@@ -406,6 +756,35 @@ class V8BandService extends ChangeNotifier {
         await syncSleepData();
       } catch (_) {}
     });
+  }
+
+  /// Opens the BLE link, retrying once after closing the half-open GATT a
+  /// failed attempt leaves behind on Android (status 133 / timeout) — the
+  /// other state that otherwise only a Bluetooth toggle cleared.
+  Future<void> _connectLink(BluetoothDevice device) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) {
+        try {
+          await device.disconnect();
+        } catch (_) {}
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+      }
+      try {
+        // mtu: null — the plugin would otherwise negotiate 512 on its own and
+        // we negotiate 153 right after (the size both vendor SDKs fall back
+        // to); two back-to-back MTU exchanges upset some watches.
+        await device.connect(
+          timeout: const Duration(seconds: 15),
+          mtu: null,
+          autoConnect: false,
+        );
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError ?? StateError('Connection failed');
   }
 
   Future<List<BluetoothService>> _discoverServicesWithRetry(
@@ -976,15 +1355,24 @@ class V8BandService extends ChangeNotifier {
       }
     }
     _streamCollectors.clear();
+    _stopRefreshLoop();
     state = BandConnectionState.idle;
-    statusMessage = message;
+    statusMessage = _rememberedDeviceId != null
+        ? '$message. Reconnecting…'
+        : message;
     notifyListeners();
+    // The link dropped on its own (range, watch reboot): get it back.
+    _reconnectAttempt = 0;
+    _scheduleReconnect();
   }
 
+  /// Drops the link but keeps the watch remembered for auto-reconnect; use
+  /// [forgetDevice] for a user-initiated disconnect.
   Future<void> disconnect() async {
     _connectionGeneration++;
     _workoutClock.stop();
     _ready = false;
+    _stopRefreshLoop();
     _stopWorkoutHeartbeat();
     await _notifySub?.cancel();
     _notifySub = null;
@@ -1036,6 +1424,9 @@ class V8BandService extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _scanSub?.cancel();
+    _adapterSub?.cancel();
+    _reconnectTimer?.cancel();
+    _stopRefreshLoop();
     unawaited(disconnect());
     super.dispose();
   }

@@ -10,7 +10,11 @@ import 'app/l10n/locale_controller.dart';
 import 'app/theme.dart';
 import 'band/v8_band_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Before anything touches Bluetooth, or iOS keeps its "Turn on Bluetooth"
+  // alert enabled for the whole run.
+  await V8BandService.applyBleOptions();
   runApp(const FitnessApp());
 }
 
@@ -37,6 +41,22 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     _session.addListener(_saveSleep);
     unawaited(_localeController.load());
     _session.load();
+    // Reconnect to last session's watch instead of making the user rescan.
+    unawaited(_bandService.restoreLastDevice());
+    _startServerSync();
+  }
+
+  /// Server-side history (averages, saved workouts, sleep) only changed on
+  /// launch before; poll it while the app is in the foreground.
+  Timer? _serverSyncTimer;
+
+  void _startServerSync() {
+    _serverSyncTimer?.cancel();
+    _serverSyncTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+      if (_session.isAuthenticated) {
+        unawaited(_session.synchronize().catchError((_) {}));
+      }
+    });
   }
 
   void _saveVitals() {
@@ -87,6 +107,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _serverSyncTimer?.cancel();
     _bandService.removeListener(_saveVitals);
     _bandService.removeListener(_saveSleep);
     _session.removeListener(_saveSleep);
@@ -98,8 +119,14 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _session.isAuthenticated) {
-      unawaited(_session.synchronize().catchError((_) {}));
+    if (state == AppLifecycleState.resumed) {
+      _startServerSync();
+      unawaited(_bandService.onAppResumed().catchError((_) {}));
+      if (_session.isAuthenticated) {
+        unawaited(_session.synchronize().catchError((_) {}));
+      }
+    } else if (state == AppLifecycleState.paused) {
+      _serverSyncTimer?.cancel();
     } else if (state == AppLifecycleState.detached) {
       unawaited(_bandService.disconnect());
     }
