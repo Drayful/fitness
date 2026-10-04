@@ -153,6 +153,14 @@ class ApiClient {
 
   Future<Map<String, dynamic>> me() => _send('GET', '/api/auth/me');
 
+  /// TZ §57: everything stored about the signed-in user.
+  Future<Map<String, dynamic>> exportAccount() =>
+      _send('GET', '/api/auth/me/export');
+
+  /// TZ §57: permanent deletion, confirmed with the current password.
+  Future<Map<String, dynamic>> deleteAccount(String password) =>
+      _send('DELETE', '/api/auth/me', body: {'password': password});
+
   /// Partial update of the body profile; null clears a field.
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> fields) =>
       _send('PATCH', '/api/auth/me', body: fields);

@@ -253,6 +253,48 @@ void main() {
     session.dispose();
   });
 
+  test('deleting the account signs out and clears local queues', () async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({
+      'auth_token': 'secure-token',
+      'auth_user_email': 'athlete@example.com',
+      'pending_workouts_athlete%40example.com': '[{"client_id":"w-1"}]',
+    });
+    String? deleteBody;
+    final session = SessionController(
+      api: ApiClient(
+        baseUrl: 'https://example.test',
+        client: MockClient((req) async {
+          if (req.method == 'DELETE' && req.url.path == '/api/auth/me') {
+            deleteBody = req.body;
+            return http.Response(
+              '{"deleted":true}',
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          // Keep the pending workout from being sent during load().
+          return http.Response(
+            '{"message":"offline"}',
+            503,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      ),
+    );
+    await session.load();
+    await session.deleteAccount('password123');
+    expect(jsonDecode(deleteBody!), {'password': 'password123'});
+    expect(session.isAuthenticated, isFalse);
+    const storage = FlutterSecureStorage();
+    expect(
+      await storage.read(key: 'pending_workouts_athlete%40example.com'),
+      isNull,
+    );
+    expect(await storage.read(key: 'auth_token'), isNull);
+    session.dispose();
+  });
+
   test('pending uploads are isolated by signed-in account', () async {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({

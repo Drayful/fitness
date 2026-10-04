@@ -367,6 +367,33 @@ class SessionController extends ChangeNotifier {
     ]);
   }
 
+  // ── Privacy: export and delete (TZ §57) ──────────────────────────────────
+
+  /// Pretty-printed JSON of all server-side data for this account.
+  Future<String> exportData() async {
+    if (!isAuthenticated) throw StateError('Sign in first');
+    final data = await api.exportAccount();
+    return const JsonEncoder.withIndent('  ').convert(data);
+  }
+
+  /// Deletes the account on the server, then clears the local session and
+  /// this account's upload queues on the phone.
+  Future<void> deleteAccount(String password) async {
+    if (!isAuthenticated) throw StateError('Sign in first');
+    await api.deleteAccount(password);
+    final email = userEmail;
+    if (email != null) {
+      final encoded = Uri.encodeComponent(email);
+      try {
+        await _storage.delete(key: 'pending_workouts_$encoded');
+        await _storage.delete(key: 'pending_measurements_$encoded');
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('$_historyCursorPrefix$encoded');
+      } catch (_) {}
+    }
+    await logout();
+  }
+
   // ── Daily step goal (TZ §20) ─────────────────────────────────────────────
 
   static const _stepGoalKey = 'step_goal_v1';

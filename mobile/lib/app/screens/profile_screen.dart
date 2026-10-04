@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../api/session_controller.dart';
 import '../../band/band_alarm.dart';
@@ -76,6 +80,92 @@ class ProfileScreen extends StatelessWidget {
     if (parts.length == 1) return parts.first.characters.first.toUpperCase();
     return (parts.first.characters.first + parts[1].characters.first)
         .toUpperCase();
+  }
+
+  /// TZ §57: export all server data as a JSON file via the share sheet.
+  Future<void> _exportData(
+    BuildContext context,
+    SessionController session,
+  ) async {
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(SnackBar(content: Text(l.t('export_preparing'))));
+    try {
+      final json = await session.exportData();
+      final dir = await getTemporaryDirectory();
+      final now = DateTime.now();
+      final stamp =
+          '${now.year}${now.month.toString().padLeft(2, '0')}'
+          '${now.day.toString().padLeft(2, '0')}';
+      final file = File('${dir.path}/yumn-export-$stamp.json');
+      await file.writeAsString(json);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'application/json')],
+          subject: l.t('export_data'),
+        ),
+      );
+    } catch (_) {
+      messenger.showSnackBar(SnackBar(content: Text(l.t('export_failed'))));
+    }
+  }
+
+  /// TZ §57: permanent account deletion, confirmed with the password.
+  Future<void> _deleteAccount(
+    BuildContext context,
+    SessionController session,
+  ) async {
+    final l = AppLocalizations.of(context);
+    final band = BandServiceScope.of(context);
+    final password = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: Text(l.t('delete_account')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l.t('delete_account_warning'),
+              style: TextStyle(color: AppTheme.textSecondary),
+            ),
+            SizedBox(height: 12),
+            TextField(
+              controller: password,
+              obscureText: true,
+              decoration: InputDecoration(labelText: l.t('auth_password')),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: Text(MaterialLocalizations.of(dialogCtx).cancelButtonLabel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: Text(l.t('delete_account_confirm')),
+          ),
+        ],
+      ),
+    );
+    final pwd = password.text;
+    password.dispose();
+    if (confirmed != true || pwd.isEmpty || !context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await session.deleteAccount(pwd);
+      await band.forgetDevice();
+      band.workoutHistory.clear();
+      messenger.showSnackBar(SnackBar(content: Text(l.t('delete_account_done'))));
+    } catch (_) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(l.t('delete_account_failed'))),
+      );
+    }
   }
 
   /// TZ §20: the user sets the daily step goal (500-step increments).
@@ -614,13 +704,35 @@ class ProfileScreen extends StatelessWidget {
                 color: AppTheme.surface,
                 border: Border.all(color: AppTheme.outline),
               ),
-              child: _settingRow(
-                c,
-                Icons.logout,
-                c.danger,
-                l.t('profile_logout'),
-                session.userEmail ?? '',
-                onTap: () => _logout(context),
+              child: Column(
+                children: [
+                  _settingRow(
+                    c,
+                    Icons.download_outlined,
+                    c.accent,
+                    l.t('export_data'),
+                    l.t('export_data_sub'),
+                    onTap: () => _exportData(context, session),
+                  ),
+                  _divider(),
+                  _settingRow(
+                    c,
+                    Icons.logout,
+                    c.danger,
+                    l.t('profile_logout'),
+                    session.userEmail ?? '',
+                    onTap: () => _logout(context),
+                  ),
+                  _divider(),
+                  _settingRow(
+                    c,
+                    Icons.delete_forever_outlined,
+                    c.danger,
+                    l.t('delete_account'),
+                    l.t('delete_account_sub'),
+                    onTap: () => _deleteAccount(context, session),
+                  ),
+                ],
               ),
             ),
           ],

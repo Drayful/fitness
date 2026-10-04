@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BandHistoryController;
 use App\Http\Controllers\CheckinController;
@@ -16,6 +17,8 @@ Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::get('/me', [AuthController::class, 'me']);
         Route::patch('/me', [AuthController::class, 'updateProfile']);
+        Route::get('/me/export', [AccountController::class, 'export']);
+        Route::delete('/me', [AccountController::class, 'destroy'])->middleware('throttle:5,1');
     });
 });
 
