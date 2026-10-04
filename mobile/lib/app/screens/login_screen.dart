@@ -82,7 +82,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final c = context.appColors;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E13),
+      backgroundColor: const Color(0xFF0D1014),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -107,17 +107,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       child: const Icon(Icons.bolt,
-                          color: Color(0xFF06120C), size: 34),
+                          color: Color(0xFF0D1014), size: 34),
                     ),
                     const SizedBox(height: 20),
                     Text(
                       _register
                           ? l.t('auth_register_title')
                           : l.t('auth_login_title'),
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.manrope(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFFF2F6FF),
+                        color: const Color(0xFFF3F5F8),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -214,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2.5,
                                 valueColor: AlwaysStoppedAnimation(
-                                    Color(0xFF06120C)),
+                                    Color(0xFF0D1014)),
                               ),
                             )
                           : Text(
@@ -222,7 +222,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? l.t('auth_register_btn')
                                   : l.t('auth_login_btn'),
                               style: const TextStyle(
-                                  color: Color(0xFF06120C),
+                                  color: Color(0xFF0D1014),
                                   fontWeight: FontWeight.w700,
                                   fontSize: 16),
                             ),
@@ -266,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
-      style: const TextStyle(color: Color(0xFFF2F6FF)),
+      style: const TextStyle(color: Color(0xFFF3F5F8)),
       cursorColor: c.accent,
       decoration: InputDecoration(
         labelText: label,
@@ -274,10 +274,10 @@ class _LoginScreenState extends State<LoginScreen> {
         errorText: serverError,
         prefixIcon: Icon(icon, color: c.subtext, size: 20),
         filled: true,
-        fillColor: const Color(0xFF101924),
+        fillColor: const Color(0xFF171B21),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF1C2838)),
+          borderSide: const BorderSide(color: Color(0xFF2A313A)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

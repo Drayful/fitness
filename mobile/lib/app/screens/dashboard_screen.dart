@@ -1,16 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
+import '../../api/session_controller.dart';
+import '../../band/v8_band_service.dart';
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
-import '../../api/session_controller.dart';
 import '../theme.dart';
-import '../widgets/metric_tile.dart';
 import '../widgets/ring_gauge.dart';
+import 'band_connect_screen.dart';
 import 'sleep_screen.dart';
 
+/// Home screen after the YUMN design (App-02-Home / State-01-NoBand).
+///
+/// The design's Energy / Recovery / Strain / Stress scores are server-side
+/// formulas that do not exist yet (Spec-05: "the band has no readiness or
+/// strain"). Instead of placeholder numbers the screen shows what the watch
+/// really reports, plus the calibration card from App-01-Onboarding.
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
+
+  /// Daily step target for the hero ring until goals are configurable.
+  static const stepGoal = 10000;
 
   @override
   Widget build(BuildContext context) {
@@ -19,352 +28,46 @@ class DashboardScreen extends StatelessWidget {
       listenable: band,
       builder: (context, _) {
         final l = AppLocalizations.of(context);
-        final t = Theme.of(context);
-        final c = context.appColors;
         final session = SessionScope.of(context);
-        final recColors = [c.subtext, c.subtext];
-        final sleep = band.sleepSummary;
-        final sleepPct = sleep != null && sleep.hasValidatedStages
-            ? sleep.score
-            : null;
-        final sleepDurStr = sleep != null && sleep.hasValidatedStages
-            ? sleep.durationStr
-            : l.t('data_unavailable');
         final vitals = band.liveVitals;
         final connected = band.isConnected;
-        final battery = band.deviceInfo?.batteryPercent;
 
-        final stepsStr = vitals != null
-            ? MaterialLocalizations.of(context).formatDecimal(vitals.steps)
-            : '--';
-        final hrStr = vitals?.heartRate != null ? '${vitals!.heartRate}' : '--';
-        final spo2Str = vitals?.spo2 != null ? '${vitals!.spo2}' : '--';
-        final tempStr = vitals?.temperatureC != null
-            ? vitals!.temperatureC!.toStringAsFixed(1)
-            : '--';
-        final battStr = battery != null ? '$battery' : '--';
-
-        // Pull down to fetch fresh readings from the watch and the server.
         return RefreshIndicator(
+          color: AppTheme.accent,
+          backgroundColor: AppTheme.surface,
           onRefresh: () => Future.wait([
             band.refresh().catchError((_) {}),
             if (session.isAuthenticated)
               session.synchronize().catchError((_) {}),
           ]),
           child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
-          children: [
-            // Header
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        MaterialLocalizations.of(
-                          context,
-                        ).formatMediumDate(DateTime.now()),
-                        style: TextStyle(
-                          color: c.subtext,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        session.userName ?? l.t('nav_today'),
-                        style: t.textTheme.titleLarge?.copyWith(fontSize: 23),
-                      ),
-                    ],
-                  ),
-                ),
-                if (connected && battery != null)
-                  _BatteryChip(percent: battery, accent: c.accent),
-                const SizedBox(width: 8),
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: const Color(0xFF121A25),
-                    border: Border.all(color: const Color(0xFF1F2C3D)),
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(
-                        Icons.notifications_none,
-                        size: 20,
-                        color: c.subtext,
-                      ),
-                      Positioned(
-                        top: 9,
-                        right: 10,
-                        child: Container(
-                          width: 7,
-                          height: 7,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: c.accent,
-                            border: Border.all(
-                              color: const Color(0xFF121A25),
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+            children: [
+              _Header(name: session.userName, l: l),
+              const SizedBox(height: 14),
+              if (connected)
+                _BandBanner(band: band, l: l)
+              else
+                _NoBandCard(band: band, l: l),
+              const SizedBox(height: 18),
+              if (connected) ...[
+                Center(child: _StepsRing(steps: vitals?.steps, l: l)),
+                const SizedBox(height: 18),
+              ],
+              _MetricsGrid(band: band, l: l),
+              if (session.averageHeartRate != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  '${l.t('avg_last_10_hr')}: '
+                  '${session.averageHeartRate!.toStringAsFixed(0)} '
+                  '${l.t('bpm')} (${session.heartRateSampleCount}/10)',
+                  style: const TextStyle(color: AppTheme.subtext, fontSize: 12),
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
-
-            // Hero recovery
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFF1F2C3D)),
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF13202C), Color(0xFF0E1822)],
-                ),
-              ),
-              child: Row(
-                children: [
-                  RingGauge(
-                    value: 0,
-                    max: 100,
-                    colors: recColors,
-                    size: 138,
-                    strokeWidth: 14,
-                    center: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text.rich(
-                          TextSpan(
-                            children: [
-                              TextSpan(
-                                text: '—',
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFFF2F6FF),
-                                ),
-                              ),
-                              TextSpan(
-                                text: '',
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  color: c.subtext,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          l.t('data_unavailable'),
-                          style: TextStyle(
-                            color: recColors.first,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.6,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          l.t('recovery'),
-                          style: TextStyle(
-                            color: c.subtext,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 9),
-                        Text(
-                          l.t('scores_pending'),
-                          style: const TextStyle(
-                            color: Color(0xFFC3CEE0),
-                            fontSize: 13.5,
-                            height: 1.35,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(999),
-                            color: c.accent.withValues(alpha: 0.12),
-                          ),
-                          child: Text(
-                            l.t('data_unavailable'),
-                            style: TextStyle(
-                              color: c.accent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 13),
-
-            // Strain + Sleep ring cards
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _MiniRingCard(
-                    label: l.t('strain'),
-                    line1: l.t('data_unavailable'),
-                    line2: l.t('of_strain'),
-                    value: 0,
-                    max: 21,
-                    valueText: '—',
-                    colors: [c.warn, c.warnEnd],
-                  ),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const SleepScreen(),
-                      ),
-                    ),
-                    child: _MiniRingCard(
-                      label: l.t('sleep'),
-                      line1: sleepDurStr,
-                      line2: band.isSleepSyncing
-                          ? l.t('syncing')
-                          : l.t('data_unavailable'),
-                      value: sleepPct?.toDouble() ?? 0,
-                      max: 100,
-                      valueText: sleepPct?.toString() ?? '—',
-                      colors: [c.sleep, c.sleepEnd],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 13),
-
-            // Live metrics header
-            _LiveHeader(
-              connected: connected,
-              live: band.isLiveHrActive,
-              l: l,
-              c: c,
-            ),
-            const SizedBox(height: 10),
-
-            // Live metric tiles — row 1: Steps | Heart Rate | SpO2
-            Row(
-              children: [
-                Expanded(
-                  child: MetricTile(
-                    label: l.t('steps'),
-                    value: stepsStr,
-                    icon: Icons.directions_walk,
-                    color: c.accent,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: MetricTile(
-                    label: l.t('heart_rate'),
-                    value: hrStr,
-                    unit: vitals?.heartRate != null ? l.t('bpm') : null,
-                    icon: Icons.favorite,
-                    color: c.warnEnd,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: MetricTile(
-                    label: l.t('spo2'),
-                    value: spo2Str,
-                    unit: vitals?.spo2 != null ? l.t('pct') : null,
-                    icon: Icons.water_drop_outlined,
-                    color: const Color(0xFF5BA3FF),
-                  ),
-                ),
-              ],
-            ),
-            if (session.averageHeartRate != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                '${l.t('avg_last_10_hr')}: '
-                '${session.averageHeartRate!.toStringAsFixed(1)}'
-                '${l.t('bpm')} (${session.heartRateSampleCount}/10)',
-                style: TextStyle(color: c.subtext, fontSize: 12),
-              ),
+              const SizedBox(height: 14),
+              _CalibrationCard(band: band, l: l),
             ],
-            const SizedBox(height: 10),
-
-            // Live metric tiles — row 2: Temperature | HRV | Battery
-            Row(
-              children: [
-                Expanded(
-                  child: MetricTile(
-                    label: l.t('temp_label'),
-                    value: tempStr,
-                    unit: vitals?.temperatureC != null ? l.t('celsius') : null,
-                    icon: Icons.thermostat_outlined,
-                    color: const Color(0xFFFF9F5A),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: MetricTile(
-                    label: l.t('hrv'),
-                    value: '—',
-                    icon: Icons.monitor_heart_outlined,
-                    color: c.accent2,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: MetricTile(
-                    label: l.t('battery'),
-                    value: battStr,
-                    unit: battery != null ? l.t('pct') : null,
-                    icon: Icons.battery_charging_full_outlined,
-                    color: battery != null && battery < 20
-                        ? c.danger
-                        : c.accent,
-                  ),
-                ),
-              ],
-            ),
-
-            // Not-connected prompt
-            if (!connected) ...[
-              const SizedBox(height: 16),
-              _ConnectPrompt(l: l, c: c),
-            ],
-          ],
           ),
         );
       },
@@ -372,132 +75,201 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-class _LiveHeader extends StatelessWidget {
-  const _LiveHeader({
-    required this.connected,
-    required this.live,
-    required this.l,
-    required this.c,
-  });
+String _fill(String template, Map<String, Object> values) {
+  var out = template;
+  values.forEach((k, v) => out = out.replaceAll('{$k}', '$v'));
+  return out;
+}
 
-  final bool connected;
-  final bool live;
+class _Header extends StatelessWidget {
+  const _Header({required this.name, required this.l});
+
+  final String? name;
   final AppLocalizations l;
-  final AppColors c;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final now = DateTime.now();
+    final greeting = now.hour < 5
+        ? l.t('greet_night')
+        : now.hour < 12
+        ? l.t('greet_morning')
+        : now.hour < 18
+        ? l.t('greet_day')
+        : now.hour < 23
+        ? l.t('greet_evening')
+        : l.t('greet_night');
+    final firstName = name?.trim().split(RegExp(r'\s+')).first;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (live) ...[
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: c.accent),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            l.t('live'),
-            style: TextStyle(
-              color: c.accent,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.4,
-            ),
-          ),
-        ] else
-          Text(
-            'METRICS',
-            style: TextStyle(
-              color: c.subtext,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.4,
-            ),
-          ),
+        Text(
+          MaterialLocalizations.of(context).formatFullDate(now),
+          style: const TextStyle(fontSize: 13, color: AppTheme.subtext),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          firstName == null || firstName.isEmpty
+              ? greeting
+              : '$greeting, $firstName',
+          style: AppTheme.numeric(fontSize: 23),
+        ),
       ],
     );
   }
 }
 
-class _BatteryChip extends StatelessWidget {
-  const _BatteryChip({required this.percent, required this.accent});
+/// Tinted status strip, the slot the design uses for its top banner.
+class _BandBanner extends StatelessWidget {
+  const _BandBanner({required this.band, required this.l});
 
-  final int percent;
-  final Color accent;
+  final V8BandService band;
+  final AppLocalizations l;
 
   @override
   Widget build(BuildContext context) {
-    final color = percent < 20 ? const Color(0xFFFF5F5F) : accent;
+    final battery = band.deviceInfo?.batteryPercent;
+    final at = band.liveVitalsAt;
+    final parts = <String>[
+      if (battery != null) _fill(l.t('home_band_battery'), {'n': battery}),
+      if (at != null)
+        DateTime.now().difference(at).inMinutes < 1
+            ? l.t('home_band_updated_now')
+            : _fill(l.t('home_band_updated_min'), {
+                'n': DateTime.now().difference(at).inMinutes,
+              }),
+    ];
+    final lowBattery = battery != null && battery < 20;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        color: color.withValues(alpha: 0.12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(14),
+        color: AppTheme.accentSoft,
+        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.35)),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            percent < 20
-                ? Icons.battery_alert_outlined
-                : Icons.battery_charging_full_outlined,
-            size: 12,
-            color: color,
+            lowBattery ? Icons.battery_alert_outlined : Icons.watch_outlined,
+            size: 18,
+            color: lowBattery ? AppTheme.danger : AppTheme.accent,
           ),
-          const SizedBox(width: 4),
-          Text(
-            '$percent%',
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ConnectPrompt extends StatelessWidget {
-  const _ConnectPrompt({required this.l, required this.c});
-
-  final AppLocalizations l;
-  final AppColors c;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: const Color(0xFF101924),
-        border: Border.all(color: const Color(0xFF1C2838)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.watch_outlined, color: c.subtext, size: 22),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  l.t('connect_band'),
+                  band.deviceInfo?.name ?? l.t('home_band_title'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFFEEF3FB),
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
+                    color: AppTheme.text,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  l.t('connect_band_sub'),
-                  style: TextStyle(color: c.subtext, fontSize: 11.5),
-                ),
+                if (parts.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    parts.join(' · '),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.subtext,
+                    ),
+                  ),
+                ],
               ],
+            ),
+          ),
+          if (band.isLiveHrActive)
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.good,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// State-01-NoBand: watch remembered but out of reach, or never connected.
+class _NoBandCard extends StatelessWidget {
+  const _NoBandCard({required this.band, required this.l});
+
+  final V8BandService band;
+  final AppLocalizations l;
+
+  @override
+  Widget build(BuildContext context) {
+    final reconnecting =
+        band.isAutoReconnecting ||
+        band.state == BandConnectionState.connecting;
+    final remembered = band.hasRememberedDevice;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.surfaceAlt,
+                ),
+                child: reconnecting
+                    ? const Padding(
+                        padding: EdgeInsets.all(11),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(
+                        Icons.watch_outlined,
+                        size: 20,
+                        color: AppTheme.subtext,
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  reconnecting
+                      ? l.t('home_band_reconnecting')
+                      : l.t('home_noband_title'),
+                  style: AppTheme.numeric(fontSize: 17),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            remembered ? l.t('home_noband_sub') : l.t('home_noband_none_sub'),
+            style: const TextStyle(
+              fontSize: 13.5,
+              height: 1.4,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => BandConnectScreen(service: band),
+                ),
+              ),
+              child: Text(l.t('home_find_band')),
             ),
           ),
         ],
@@ -506,83 +278,325 @@ class _ConnectPrompt extends StatelessWidget {
   }
 }
 
-class _MiniRingCard extends StatelessWidget {
-  const _MiniRingCard({
-    required this.label,
-    required this.line1,
-    required this.line2,
-    required this.value,
-    required this.max,
-    required this.valueText,
-    required this.colors,
-  });
+class _StepsRing extends StatelessWidget {
+  const _StepsRing({required this.steps, required this.l});
 
-  final String label;
-  final String line1;
-  final String line2;
-  final double value;
-  final double max;
-  final String valueText;
-  final List<Color> colors;
+  final int? steps;
+  final AppLocalizations l;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.appColors;
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        color: const Color(0xFF101924),
-        border: Border.all(color: const Color(0xFF1C2838)),
-      ),
-      child: Row(
+    final fmt = MaterialLocalizations.of(context);
+    return RingGauge(
+      value: (steps ?? 0).toDouble(),
+      max: DashboardScreen.stepGoal.toDouble(),
+      colors: const [AppTheme.accent, AppTheme.accentBorder],
+      size: 168,
+      strokeWidth: 14,
+      center: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          RingGauge(
-            value: value,
-            max: max,
-            colors: colors,
-            size: 60,
-            strokeWidth: 9,
-            center: Text(
-              valueText,
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: colors.first,
-              ),
+          Text(
+            steps == null ? '—' : fmt.formatDecimal(steps!),
+            style: AppTheme.numeric(fontSize: steps == null ? 40 : 30),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            l.t('steps'),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+              color: AppTheme.subtext,
             ),
           ),
-          const SizedBox(width: 11),
-          Expanded(
+          Text(
+            _fill(l.t('home_steps_goal'), {
+              'goal': fmt.formatDecimal(DashboardScreen.stepGoal),
+            }),
+            style: const TextStyle(fontSize: 11, color: AppTheme.subtext),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 2×2 tiles in the design's style: small caps label, big Manrope number.
+class _MetricsGrid extends StatelessWidget {
+  const _MetricsGrid({required this.band, required this.l});
+
+  final V8BandService band;
+  final AppLocalizations l;
+
+  @override
+  Widget build(BuildContext context) {
+    final v = band.liveVitals;
+    final sleep = band.sleepSummary;
+
+    String? sleepValue;
+    String? sleepUnit;
+    if (sleep != null && sleep.hasValidatedStages) {
+      sleepValue = '${sleep.score}';
+      sleepUnit = '/ 100';
+    } else if (sleep != null && sleep.hasData) {
+      final m = sleep.observedMinutes;
+      sleepValue = '${m ~/ 60}:${(m % 60).toString().padLeft(2, '0')}';
+    }
+
+    final tiles = <Widget>[
+      _Tile(
+        label: l.t('heart_rate'),
+        value: v?.heartRate?.toString(),
+        unit: l.t('bpm'),
+        color: AppTheme.accent,
+      ),
+      _Tile(
+        label: l.t('spo2'),
+        value: v?.spo2?.toString(),
+        unit: '%',
+        color: AppTheme.good,
+      ),
+      _Tile(
+        label: l.t('sleep'),
+        value: sleepValue,
+        unit: sleepUnit,
+        color: AppTheme.good,
+        busy: band.isSleepSyncing,
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const SleepScreen()),
+        ),
+      ),
+      _Tile(
+        label: l.t('temp_label'),
+        value: v?.temperatureC?.toStringAsFixed(1),
+        unit: '°C',
+        color: AppTheme.accent,
+      ),
+    ];
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: tiles[0]),
+            const SizedBox(width: 10),
+            Expanded(child: tiles[1]),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: tiles[2]),
+            const SizedBox(width: 10),
+            Expanded(child: tiles[3]),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _Tile extends StatelessWidget {
+  const _Tile({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.unit,
+    this.busy = false,
+    this.onTap,
+  });
+
+  final String label;
+  final String? value;
+  final String? unit;
+  final Color color;
+  final bool busy;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppTheme.outline),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(15, 14, 15, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.9,
+                        color: AppTheme.subtext,
+                      ),
+                    ),
+                  ),
+                  if (busy)
+                    const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 1.6),
+                    )
+                  else if (onTap != null)
+                    const Icon(
+                      Icons.chevron_right,
+                      size: 16,
+                      color: AppTheme.subtext,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: value ?? '—',
+                      style: AppTheme.numeric(
+                        fontSize: 28,
+                        color: value == null ? AppTheme.subtext : color,
+                      ),
+                    ),
+                    if (value != null && unit != null)
+                      TextSpan(
+                        text: ' $unit',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.subtext,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// App-01-Onboarding: why scores are missing and what is already collected.
+class _CalibrationCard extends StatelessWidget {
+  const _CalibrationCard({required this.band, required this.l});
+
+  final V8BandService band;
+  final AppLocalizations l;
+
+  @override
+  Widget build(BuildContext context) {
+    final v = band.liveVitals;
+    final sleep = band.sleepSummary;
+    final rows = <(String, bool)>[
+      (l.t('heart_rate'), v?.heartRate != null),
+      (l.t('spo2'), v?.spo2 != null),
+      (l.t('sleep'), sleep != null && sleep.hasData),
+      (l.t('temp_label'), v?.temperatureC != null),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l.t('calib_title'), style: AppTheme.numeric(fontSize: 17)),
+          const SizedBox(height: 8),
+          Text(
+            l.t('calib_sub'),
+            style: const TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            l.t('calib_collected'),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.9,
+              color: AppTheme.subtext,
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final (label, ok) in rows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Icon(
+                    ok ? Icons.check_circle : Icons.radio_button_unchecked,
+                    size: 18,
+                    color: ok ? AppTheme.good : AppTheme.outline,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.text,
+                      ),
+                    ),
+                  ),
+                  if (!ok)
+                    Text(
+                      l.t('calib_collecting'),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.subtext,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: AppTheme.accentSoft,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  label,
-                  style: TextStyle(
-                    color: c.subtext,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  line1,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  l.t('calib_why_title'),
                   style: const TextStyle(
-                    color: Color(0xFFDBE3F0),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.9,
+                    color: AppTheme.accent,
                   ),
                 ),
+                const SizedBox(height: 4),
                 Text(
-                  line2,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: c.subtext, fontSize: 11),
+                  l.t('calib_why'),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
               ],
             ),

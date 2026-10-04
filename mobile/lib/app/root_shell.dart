@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/insights_screen.dart';
-import 'screens/training_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/sleep_screen.dart';
+import 'screens/training_screen.dart';
 import 'theme.dart';
 
+/// Bottom navigation from the YUMN design: Home · Sleep · Training · Trends ·
+/// Profile. The design's "Team" tab waits for the group feature; Trends takes
+/// its slot (same chart icon) until then.
 class RootShell extends StatefulWidget {
   const RootShell({super.key});
 
@@ -19,8 +23,9 @@ class _RootShellState extends State<RootShell> {
 
   final _tabs = const <Widget>[
     DashboardScreen(),
-    InsightsScreen(),
+    SleepScreen(embedded: true),
     TrainingScreen(),
+    InsightsScreen(),
     ProfileScreen(),
   ];
 
@@ -34,8 +39,9 @@ class _RootShellState extends State<RootShell> {
         onTap: (v) => setState(() => _idx = v),
         labels: [
           l.t('nav_today'),
-          l.t('nav_trends'),
+          l.t('nav_sleep'),
           l.t('nav_training'),
+          l.t('nav_trends'),
           l.t('nav_profile'),
         ],
       ),
@@ -55,61 +61,50 @@ class _NavBar extends StatelessWidget {
   final List<String> labels;
 
   static const _icons = [
-    Icons.bolt,
-    Icons.show_chart,
-    Icons.fitness_center,
+    Icons.home_outlined,
+    Icons.bedtime_outlined,
+    Icons.bolt_outlined,
+    Icons.bar_chart_rounded,
     Icons.person_outline,
   ];
 
   @override
   Widget build(BuildContext context) {
-    final c = context.appColors;
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
         decoration: const BoxDecoration(
-          color: Color(0xFF0A0E13),
-          border: Border(top: BorderSide(color: Color(0xFF18222F))),
+          color: AppTheme.bg,
+          border: Border(top: BorderSide(color: AppTheme.outline)),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: List.generate(labels.length, (i) {
             final active = i == index;
-            return InkWell(
-              onTap: () => onTap(i),
-              borderRadius: BorderRadius.circular(14),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 29,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: active
-                            ? c.accent.withValues(alpha: 0.14)
-                            : Colors.transparent,
+            final color = active ? AppTheme.accent : AppTheme.subtext;
+            return Expanded(
+              child: InkWell(
+                onTap: () => onTap(i),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_icons[i], size: 22, color: color),
+                      const SizedBox(height: 5),
+                      Text(
+                        labels[i],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                          color: color,
+                        ),
                       ),
-                      child: Icon(
-                        _icons[i],
-                        size: 22,
-                        color: active ? c.accent : c.subtext,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      labels[i],
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: active ? FontWeight.w700 : FontWeight.w600,
-                        color: active ? c.accent : c.subtext,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );

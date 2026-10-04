@@ -99,18 +99,18 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF13202C),
+        backgroundColor: const Color(0xFF171B21),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           l.t('workout_still_active'),
           style: const TextStyle(
-            color: Color(0xFFF2F6FF),
+            color: Color(0xFFF3F5F8),
             fontWeight: FontWeight.w700,
           ),
         ),
         content: Text(
           l.t('workout_inactive_msg').replaceFirst('%m', minutes),
-          style: const TextStyle(color: Color(0xFF9FB0CC), height: 1.4),
+          style: const TextStyle(color: Color(0xFFC6CCD6), height: 1.4),
         ),
         actions: [
           TextButton(
@@ -151,18 +151,18 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF13202C),
+        backgroundColor: const Color(0xFF171B21),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           l.t('workout_end_confirm'),
           style: const TextStyle(
-            color: Color(0xFFF2F6FF),
+            color: Color(0xFFF3F5F8),
             fontWeight: FontWeight.w700,
           ),
         ),
         content: Text(
           l.t('workout_end_confirm_sub'),
-          style: const TextStyle(color: Color(0xFF9FB0CC)),
+          style: const TextStyle(color: Color(0xFFC6CCD6)),
         ),
         actions: [
           TextButton(
@@ -219,7 +219,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             }
           },
           child: Scaffold(
-            backgroundColor: const Color(0xFF090F17),
+            backgroundColor: const Color(0xFF0D1014),
             body: SafeArea(
               child: _starting
                   ? _buildStarting(l, accent)
@@ -247,7 +247,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           Text(
             l.t('workout_starting'),
             style: const TextStyle(
-              color: Color(0xFFDBE3F0),
+              color: Color(0xFFC6CCD6),
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
@@ -279,7 +279,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             l.t('workout_start_failed'),
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Color(0xFFDBE3F0),
+              color: Color(0xFFC6CCD6),
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
@@ -288,7 +288,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           Text(
             l.t('workout_start_failed_sub'),
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFF6B7E96), fontSize: 14),
+            style: const TextStyle(color: Color(0xFF8B94A1), fontSize: 14),
           ),
           const SizedBox(height: 28),
           FilledButton(
@@ -297,7 +297,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             child: Text(
               l.t('back'),
               style: const TextStyle(
-                color: Color(0xFF090F17),
+                color: Color(0xFF0D1014),
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -426,7 +426,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           child: Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.close, color: Color(0xFF6B7E96)),
+                icon: const Icon(Icons.close, color: Color(0xFF8B94A1)),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ],
@@ -450,10 +450,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                 const SizedBox(height: 16),
                 Text(
                   l.t('workout_complete'),
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.manrope(
                     fontSize: 28,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF2F6FF),
+                    color: const Color(0xFFF3F5F8),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -472,7 +472,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                   Text(
                     l.t('workout_no_data'),
                     style: const TextStyle(
-                      color: Color(0xFF6B7E96),
+                      color: Color(0xFF8B94A1),
                       fontSize: 14,
                     ),
                   ),
@@ -492,7 +492,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     child: Text(
                       l.t('workout_done'),
                       style: const TextStyle(
-                        color: Color(0xFF090F17),
+                        color: Color(0xFF0D1014),
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
                       ),
@@ -544,12 +544,12 @@ class _ActiveHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 8, 16, 12),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF1A2535))),
+        border: Border(bottom: BorderSide(color: Color(0xFF252C35))),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.close, color: Color(0xFF6B7E96), size: 22),
+            icon: const Icon(Icons.close, color: Color(0xFF8B94A1), size: 22),
             onPressed: onClose,
           ),
           Expanded(
@@ -561,7 +561,7 @@ class _ActiveHeader extends StatelessWidget {
                 Text(
                   _labelFor(type, l),
                   style: const TextStyle(
-                    color: Color(0xFFDBE3F0),
+                    color: Color(0xFFC6CCD6),
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -571,7 +571,7 @@ class _ActiveHeader extends StatelessWidget {
           ),
           Text(
             durationStr,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.manrope(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: accent,
@@ -618,10 +618,10 @@ class _HeroMetric extends StatelessWidget {
           children: [
             Text(
               value,
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.manrope(
                 fontSize: 72,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFFF2F6FF),
+                color: const Color(0xFFF3F5F8),
                 height: 1,
               ),
             ),
@@ -631,7 +631,7 @@ class _HeroMetric extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
                   unit,
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.manrope(
                     fontSize: 22,
                     fontWeight: FontWeight.w600,
                     color: accent,
@@ -772,8 +772,8 @@ class _StatCell extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: const Color(0xFF101924),
-        border: Border.all(color: const Color(0xFF1C2838)),
+        color: const Color(0xFF171B21),
+        border: Border.all(color: const Color(0xFF2A313A)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -785,10 +785,10 @@ class _StatCell extends StatelessWidget {
               children: [
                 TextSpan(
                   text: value,
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.manrope(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF2F6FF),
+                    color: const Color(0xFFF3F5F8),
                   ),
                 ),
                 if (unit.isNotEmpty)
@@ -807,7 +807,7 @@ class _StatCell extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              color: Color(0xFF6B7E96),
+              color: Color(0xFF8B94A1),
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -837,7 +837,7 @@ class _ControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = textColor ?? const Color(0xFF090F17);
+    final fg = textColor ?? const Color(0xFF0D1014);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -886,8 +886,8 @@ class _SummaryCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
-        color: const Color(0xFF101924),
-        border: Border.all(color: const Color(0xFF1C2838)),
+        color: const Color(0xFF171B21),
+        border: Border.all(color: const Color(0xFF2A313A)),
       ),
       child: Column(
         children: [
@@ -947,13 +947,13 @@ class _SummaryCard extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             label,
-            style: const TextStyle(color: Color(0xFF9FB0CC), fontSize: 14),
+            style: const TextStyle(color: Color(0xFFC6CCD6), fontSize: 14),
           ),
           const Spacer(),
           Text(
             value,
-            style: GoogleFonts.spaceGrotesk(
-              color: const Color(0xFFF2F6FF),
+            style: GoogleFonts.manrope(
+              color: const Color(0xFFF3F5F8),
               fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
@@ -964,5 +964,5 @@ class _SummaryCard extends StatelessWidget {
   }
 
   Widget _divider() =>
-      const Divider(color: Color(0xFF1C2838), height: 1, thickness: 1);
+      const Divider(color: Color(0xFF2A313A), height: 1, thickness: 1);
 }

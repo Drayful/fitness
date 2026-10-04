@@ -26,10 +26,10 @@ class TrainingScreen extends StatelessWidget {
           children: [
             Text(
               l.t('training'),
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.manrope(
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFFF2F6FF),
+                color: const Color(0xFFF3F5F8),
                 letterSpacing: -0.5,
               ),
             ),
@@ -151,8 +151,8 @@ class TrainingScreen extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
-                    color: const Color(0xFF101924),
-                    border: Border.all(color: const Color(0xFF1C2838)),
+                    color: const Color(0xFF171B21),
+                    border: Border.all(color: const Color(0xFF2A313A)),
                   ),
                   child: Icon(icon, color: color, size: 24),
                 ),
@@ -163,7 +163,7 @@ class TrainingScreen extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: Color(0xFF9FB0CC),
+                  color: Color(0xFFC6CCD6),
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -216,8 +216,8 @@ class _WorkoutHistoryRow extends StatelessWidget {
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: const Color(0xFF101924),
-        border: Border.all(color: const Color(0xFF1C2838)),
+        color: const Color(0xFF171B21),
+        border: Border.all(color: const Color(0xFF2A313A)),
       ),
       child: Row(
         children: [
@@ -239,7 +239,7 @@ class _WorkoutHistoryRow extends StatelessWidget {
                 Text(
                   _typeName(summary.type, l),
                   style: const TextStyle(
-                    color: Color(0xFFEEF3FB),
+                    color: Color(0xFFF3F5F8),
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
@@ -251,7 +251,7 @@ class _WorkoutHistoryRow extends StatelessWidget {
           ),
           Text(
             when,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.manrope(
               color: color,
               fontSize: 13,
               fontWeight: FontWeight.w700,
@@ -290,8 +290,8 @@ class _ConnectHint extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: const Color(0xFF101420),
-        border: Border.all(color: const Color(0xFF1C2838)),
+        color: const Color(0xFF171B21),
+        border: Border.all(color: const Color(0xFF2A313A)),
       ),
       child: Row(
         children: [

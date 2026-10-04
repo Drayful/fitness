@@ -56,7 +56,7 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
               borderRadius: BorderRadius.circular(25),
               border: Border.all(color: c.accent.withValues(alpha: 0.25)),
               gradient: const LinearGradient(
-                colors: [Color(0xFF18302E), Color(0xFF101924)],
+                colors: [Color(0xFF18302E), Color(0xFF171B21)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -318,7 +318,7 @@ class _DeviceCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: suggested
                       ? c.accent.withValues(alpha: 0.13)
-                      : const Color(0xFF1C2838),
+                      : const Color(0xFF2A313A),
                   borderRadius: BorderRadius.circular(15),
                 ),
                 child: Icon(
@@ -396,13 +396,13 @@ class _ModelPicker extends StatelessWidget {
                     color:
                         service.variantConfirmed && service.variant == variant
                         ? c.accent
-                        : const Color(0xFF263446),
+                        : const Color(0xFF2A313A),
                   ),
                 ),
                 tileColor:
                     service.variantConfirmed && service.variant == variant
                     ? c.accent.withValues(alpha: 0.10)
-                    : const Color(0xFF0E1620),
+                    : const Color(0xFF12161B),
                 leading: Icon(Icons.watch_outlined, color: c.accent),
                 title: Text(variant.label),
                 trailing: service.variantConfirmed && service.variant == variant

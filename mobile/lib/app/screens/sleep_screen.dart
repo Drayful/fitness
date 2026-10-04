@@ -9,7 +9,10 @@ import '../theme.dart';
 import '../widgets/ring_gauge.dart';
 
 class SleepScreen extends StatefulWidget {
-  const SleepScreen({super.key});
+  const SleepScreen({super.key, this.embedded = false});
+
+  /// True when shown as a bottom-nav tab: no back button.
+  final bool embedded;
 
   @override
   State<SleepScreen> createState() => _SleepScreenState();
@@ -43,21 +46,24 @@ class _SleepScreenState extends State<SleepScreen> {
         final syncing = band.isSleepSyncing;
 
         return Scaffold(
-          backgroundColor: const Color(0xFF0A0E13),
+          backgroundColor: const Color(0xFF0D1014),
           appBar: AppBar(
-            backgroundColor: const Color(0xFF0A0E13),
+            backgroundColor: const Color(0xFF0D1014),
             surfaceTintColor: Colors.transparent,
             elevation: 0,
-            leading: IconButton(
-              icon: Icon(Icons.chevron_left, color: c.subtext, size: 28),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
+            automaticallyImplyLeading: false,
+            leading: widget.embedded
+                ? null
+                : IconButton(
+                    icon: Icon(Icons.chevron_left, color: c.subtext, size: 28),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
             title: Text(
               l.t('sleep_analysis'),
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.manrope(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFFF2F6FF),
+                color: const Color(0xFFF3F5F8),
               ),
             ),
             actions: [
@@ -150,7 +156,7 @@ class _SavedSleepHistory extends StatelessWidget {
               '${DateTime.parse(row['ended_at'] as String).toLocal().toString().substring(0, 16)}'
               ' · ${row['observed_minutes']} ${l.t('minutes_observed')}'
               '${row['stages_validated'] == true ? '' : ' · ${l.t('stages_unverified')}'}',
-              style: const TextStyle(color: Color(0xFFDCE6F5)),
+              style: const TextStyle(color: Color(0xFFC6CCD6)),
             ),
           ),
       ],
@@ -185,10 +191,10 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 18),
             Text(
               syncing ? l.t('syncing') : l.t('no_sleep_data'),
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.manrope(
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFFF2F6FF),
+                color: const Color(0xFFF3F5F8),
               ),
             ),
             const SizedBox(height: 10),
@@ -262,11 +268,11 @@ class _SummaryCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF1F2C3D)),
+        border: Border.all(color: const Color(0xFF2A313A)),
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF13202C), Color(0xFF0E1822)],
+          colors: [Color(0xFF171B21), Color(0xFF171B21)],
         ),
       ),
       child: Row(
@@ -282,10 +288,10 @@ class _SummaryCard extends StatelessWidget {
               children: [
                 Text(
                   '${summary.score}',
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.manrope(
                     fontSize: 32,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF2F6FF),
+                    color: const Color(0xFFF3F5F8),
                     height: 1,
                   ),
                 ),
@@ -319,10 +325,10 @@ class _SummaryCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   summary.durationStr,
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.manrope(
                     fontSize: 34,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF2F6FF),
+                    color: const Color(0xFFF3F5F8),
                     height: 1,
                   ),
                 ),
@@ -359,10 +365,10 @@ class _SummaryCard extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           '$hh:$mn',
-          style: GoogleFonts.spaceGrotesk(
+          style: GoogleFonts.manrope(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFFDBE3F0),
+            color: const Color(0xFFC6CCD6),
           ),
         ),
       ],
@@ -462,8 +468,8 @@ Color _stageColor(SleepStage stage) => switch (stage) {
   SleepStage.deep => const Color(0xFF4A6CF7),
   SleepStage.light => const Color(0xFF9B8CFF),
   SleepStage.rem => const Color(0xFF36E0FF),
-  SleepStage.awake => const Color(0xFF475569),
-  SleepStage.unknown => const Color(0xFF475569),
+  SleepStage.awake => const Color(0xFF5F6874),
+  SleepStage.unknown => const Color(0xFF5F6874),
 };
 
 class _TimeLabels extends StatelessWidget {
@@ -539,7 +545,7 @@ class _HypnogramPainter extends CustomPainter {
 
     // Draw faint horizontal grid bands
     final gridPaint = Paint()
-      ..color = const Color(0xFF1C2838)
+      ..color = const Color(0xFF2A313A)
       ..strokeWidth = 0.5;
     for (final frac in [0.0, 0.33, 0.66, 1.0]) {
       final y = frac * size.height;
@@ -688,7 +694,7 @@ class _StageRow extends StatelessWidget {
           child: Text(
             label,
             style: const TextStyle(
-              color: Color(0xFFDBE3F0),
+              color: Color(0xFFC6CCD6),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -701,7 +707,7 @@ class _StageRow extends StatelessWidget {
             child: LinearProgressIndicator(
               value: frac,
               minHeight: 6,
-              backgroundColor: const Color(0xFF1C2838),
+              backgroundColor: const Color(0xFF2A313A),
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
@@ -712,10 +718,10 @@ class _StageRow extends StatelessWidget {
           child: Text(
             durStr,
             textAlign: TextAlign.right,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.manrope(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFFDBE3F0),
+              color: const Color(0xFFC6CCD6),
             ),
           ),
         ),
@@ -805,7 +811,7 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 7),
           Text(
             value,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.manrope(
               fontSize: 20,
               fontWeight: FontWeight.w700,
               color: color,
@@ -821,6 +827,6 @@ class _StatCard extends StatelessWidget {
 
 const _cardDecor = BoxDecoration(
   borderRadius: BorderRadius.all(Radius.circular(20)),
-  color: Color(0xFF101924),
-  border: Border.fromBorderSide(BorderSide(color: Color(0xFF1C2838))),
+  color: Color(0xFF171B21),
+  border: Border.fromBorderSide(BorderSide(color: Color(0xFF2A313A))),
 );

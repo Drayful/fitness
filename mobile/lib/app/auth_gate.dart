@@ -17,7 +17,7 @@ class AuthGate extends StatelessWidget {
 
     if (session.bootstrapping) {
       return const Scaffold(
-        backgroundColor: Color(0xFF0A0E13),
+        backgroundColor: Color(0xFF0D1014),
         body: Center(child: CircularProgressIndicator()),
       );
     }

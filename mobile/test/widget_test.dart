@@ -20,14 +20,14 @@ void main() {
     await tester.pumpWidget(const FitnessApp());
     await tester.pumpAndSettle();
     expect(find.byType(DashboardScreen), findsOneWidget);
-    expect(find.text('Tester'), findsOneWidget);
+    expect(find.textContaining('Tester'), findsOneWidget);
     expect(find.text('72'), findsNothing);
     expect(find.text('78'), findsNothing);
     expect(tester.takeException(), isNull);
-    await tester.tap(find.byIcon(Icons.show_chart));
+    await tester.tap(find.byIcon(Icons.bar_chart_rounded));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    await tester.tap(find.byIcon(Icons.fitness_center));
+    await tester.tap(find.byIcon(Icons.bolt_outlined));
     await tester.pumpAndSettle();
     expect(
       find.text('В этой сессии пока нет записанных тренировок.'),

@@ -27,8 +27,8 @@ class MetricTile extends StatelessWidget {
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: const Color(0xFF101924),
-        border: Border.all(color: const Color(0xFF1C2838)),
+        color: const Color(0xFF171B21),
+        border: Border.all(color: const Color(0xFF2A313A)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,10 +58,10 @@ class MetricTile extends StatelessWidget {
               children: [
                 TextSpan(
                   text: value,
-                  style: GoogleFonts.spaceGrotesk(
+                  style: GoogleFonts.manrope(
                     fontSize: 21,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF2F6FF),
+                    color: const Color(0xFFF3F5F8),
                   ),
                 ),
                 if (unit != null)

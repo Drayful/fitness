@@ -13,7 +13,7 @@ class RingGauge extends StatelessWidget {
     this.size = 148,
     this.strokeWidth = 15,
     this.center,
-    this.trackColor = const Color(0xFF1C2838),
+    this.trackColor = const Color(0xFF2A313A),
   });
 
   final double value;

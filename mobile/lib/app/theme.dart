@@ -1,27 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// YUMN design system tokens (dark theme), taken from the Claude Design
+/// canvas: Golos Text for UI, Manrope ExtraBold for headings and numbers,
+/// indigo as the single accent and teal for "good" values.
 class AppTheme {
+  static const bg = Color(0xFF0D1014);
+  static const surface = Color(0xFF171B21);
+  static const surfaceAlt = Color(0xFF12161B);
+  static const outline = Color(0xFF2A313A);
+  static const text = Color(0xFFF3F5F8);
+  static const textSecondary = Color(0xFFC6CCD6);
+  static const subtext = Color(0xFF8B94A1);
+
+  /// Primary accent: rings, links, active tab, primary buttons.
+  static const accent = Color(0xFF8E9AF2);
+
+  /// Softer indigo for tinted cards (coach tips, banners).
+  static const accentSoft = Color(0xFF1C2136);
+  static const accentBorder = Color(0xFFAAB4F6);
+
+  /// "Good" values: recovery, sleep score, low stress.
+  static const good = Color(0xFF34C0A4);
+  static const warn = Color(0xFFF2B84B);
+  static const warnEnd = Color(0xFFFF8A5B);
+  static const danger = Color(0xFFFF6B7A);
+  static const info = Color(0xFF6E9BFF);
+  static const sleep = Color(0xFF8E9AF2);
+  static const sleepEnd = Color(0xFFAAB4F6);
+
+  /// Big numbers and headings: Manrope ExtraBold with tight tracking.
+  static TextStyle numeric({
+    double fontSize = 21,
+    Color color = text,
+    FontWeight fontWeight = FontWeight.w800,
+  }) => GoogleFonts.manrope(
+    fontSize: fontSize,
+    fontWeight: fontWeight,
+    color: color,
+    letterSpacing: -0.02 * fontSize,
+  );
+
   static ThemeData dark() {
-    const bg = Color(0xFF0A0E13);
-    const surface = Color(0xFF101924);
-    const surface2 = Color(0xFF0E1620);
-    const outline = Color(0xFF1C2838);
-    const text = Color(0xFFF2F6FF);
-    const subtext = Color(0xFF7E90AA);
-
-    const accent = Color(0xFF34F5A0);
-    const accent2 = Color(0xFF36E0FF);
-    const warn = Color(0xFFFFB23E);
-    const warnEnd = Color(0xFFFF7A59);
-    const danger = Color(0xFFFF5C7A);
-    const info = Color(0xFF6E9BFF);
-    const sleep = Color(0xFF8AA6FF);
-    const sleepEnd = Color(0xFF9B8CFF);
-
     final scheme = const ColorScheme.dark().copyWith(
       primary: accent,
-      secondary: accent2,
+      onPrimary: bg,
+      secondary: good,
+      onSecondary: bg,
       error: danger,
       surface: surface,
       onSurface: text,
@@ -33,19 +58,27 @@ class AppTheme {
       brightness: Brightness.dark,
       colorScheme: scheme,
       scaffoldBackgroundColor: bg,
-      textTheme: GoogleFonts.manropeTextTheme(ThemeData.dark().textTheme),
+      textTheme: GoogleFonts.golosTextTextTheme(ThemeData.dark().textTheme)
+          .apply(bodyColor: text, displayColor: text),
     );
 
-    TextStyle? grotesk(TextStyle? s, {FontWeight w = FontWeight.w700, double? ls}) =>
-        GoogleFonts.spaceGrotesk(textStyle: s, fontWeight: w, letterSpacing: ls);
+    TextStyle? heading(
+      TextStyle? s, {
+      FontWeight w = FontWeight.w800,
+      double ls = -0.4,
+    }) => GoogleFonts.manrope(textStyle: s, fontWeight: w, letterSpacing: ls);
 
     return base.copyWith(
       textTheme: base.textTheme.copyWith(
-        displaySmall: grotesk(base.textTheme.displaySmall),
-        headlineMedium: grotesk(base.textTheme.headlineMedium),
-        headlineSmall: grotesk(base.textTheme.headlineSmall),
-        titleLarge: grotesk(base.textTheme.titleLarge, ls: -0.4),
-        titleMedium: grotesk(base.textTheme.titleMedium, w: FontWeight.w600),
+        displaySmall: heading(base.textTheme.displaySmall),
+        headlineMedium: heading(base.textTheme.headlineMedium),
+        headlineSmall: heading(base.textTheme.headlineSmall),
+        titleLarge: heading(base.textTheme.titleLarge, ls: -0.46),
+        titleMedium: heading(
+          base.textTheme.titleMedium,
+          w: FontWeight.w700,
+          ls: -0.2,
+        ),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: bg,
@@ -53,27 +86,59 @@ class AppTheme {
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleTextStyle: GoogleFonts.spaceGrotesk(
-          fontSize: 26,
-          fontWeight: FontWeight.w700,
+        titleTextStyle: GoogleFonts.manrope(
+          fontSize: 23,
+          fontWeight: FontWeight.w800,
           color: text,
-          letterSpacing: -0.5,
+          letterSpacing: -0.46,
         ),
       ),
       cardTheme: CardThemeData(
         color: surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(18),
           side: const BorderSide(color: outline, width: 1),
         ),
         margin: EdgeInsets.zero,
       ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: accent,
+          foregroundColor: bg,
+          minimumSize: const Size(0, 50),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: GoogleFonts.golosText(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: text,
+          minimumSize: const Size(0, 50),
+          side: const BorderSide(color: outline),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: GoogleFonts.golosText(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: accent),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(color: accent),
       dividerTheme: const DividerThemeData(color: outline, thickness: 1),
       chipTheme: base.chipTheme.copyWith(
         side: const BorderSide(color: outline),
-        backgroundColor: surface2,
-        selectedColor: surface,
+        backgroundColor: surfaceAlt,
+        selectedColor: accentSoft,
         labelStyle: const TextStyle(color: text),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
@@ -85,7 +150,7 @@ class AppTheme {
       extensions: const [
         AppColors(
           accent: accent,
-          accent2: accent2,
+          accent2: good,
           warn: warn,
           warnEnd: warnEnd,
           danger: danger,
@@ -114,6 +179,8 @@ class AppColors extends ThemeExtension<AppColors> {
   });
 
   final Color accent;
+
+  /// Teal "good" colour in the YUMN palette.
   final Color accent2;
   final Color warn;
   final Color warnEnd;
@@ -122,6 +189,8 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color sleep;
   final Color sleepEnd;
   final Color subtext;
+
+  Color get good => accent2;
 
   @override
   AppColors copyWith({

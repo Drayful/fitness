@@ -27,18 +27,18 @@ class ProfileScreen extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF13202C),
+        backgroundColor: const Color(0xFF171B21),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           l.t('logout_confirm'),
           style: const TextStyle(
-            color: Color(0xFFF2F6FF),
+            color: Color(0xFFF3F5F8),
             fontWeight: FontWeight.w700,
           ),
         ),
         content: Text(
           l.t('logout_confirm_sub'),
-          style: const TextStyle(color: Color(0xFF9FB0CC)),
+          style: const TextStyle(color: Color(0xFFC6CCD6)),
         ),
         actions: [
           TextButton(
@@ -78,7 +78,7 @@ class ProfileScreen extends StatelessWidget {
     final current = controller.locale.languageCode;
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF101924),
+      backgroundColor: const Color(0xFF171B21),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -95,7 +95,7 @@ class ProfileScreen extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                   child: Text(
                     l.t('choose_language'),
-                    style: GoogleFonts.spaceGrotesk(
+                    style: GoogleFonts.manrope(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                     ),
@@ -111,7 +111,7 @@ class ProfileScreen extends StatelessWidget {
                         fontWeight: selected
                             ? FontWeight.w700
                             : FontWeight.w500,
-                        color: selected ? c.accent : const Color(0xFFEEF3FB),
+                        color: selected ? c.accent : const Color(0xFFF3F5F8),
                       ),
                     ),
                     trailing: selected
@@ -150,10 +150,10 @@ class ProfileScreen extends StatelessWidget {
           children: [
             Text(
               l.t('profile'),
-              style: GoogleFonts.spaceGrotesk(
+              style: GoogleFonts.manrope(
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFFF2F6FF),
+                color: const Color(0xFFF3F5F8),
                 letterSpacing: -0.5,
               ),
             ),
@@ -177,10 +177,10 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     child: Text(
                       _initials(session.userName),
-                      style: GoogleFonts.spaceGrotesk(
+                      style: GoogleFonts.manrope(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFF06120C),
+                        color: const Color(0xFF0D1014),
                       ),
                     ),
                   ),
@@ -191,10 +191,10 @@ class ProfileScreen extends StatelessWidget {
                       children: [
                         Text(
                           session.userName ?? 'User',
-                          style: GoogleFonts.spaceGrotesk(
+                          style: GoogleFonts.manrope(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFFF2F6FF),
+                            color: const Color(0xFFF3F5F8),
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -215,11 +215,11 @@ class ProfileScreen extends StatelessWidget {
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFF1F2C3D)),
+                border: Border.all(color: const Color(0xFF2A313A)),
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF13202C), Color(0xFF0E1822)],
+                  colors: [Color(0xFF171B21), Color(0xFF171B21)],
                 ),
               ),
               child: Column(
@@ -244,7 +244,7 @@ class ProfileScreen extends StatelessWidget {
                             Text(
                               band.deviceInfo?.name ?? l.t('bracelet'),
                               style: const TextStyle(
-                                color: Color(0xFFEEF3FB),
+                                color: Color(0xFFF3F5F8),
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -310,7 +310,7 @@ class ProfileScreen extends StatelessWidget {
                           c,
                           l.t('firmware'),
                           firmware ?? '—',
-                          const Color(0xFFEEF3FB),
+                          const Color(0xFFF3F5F8),
                         ),
                       ),
                     ],
@@ -324,8 +324,8 @@ class ProfileScreen extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(22),
-                color: const Color(0xFF101924),
-                border: Border.all(color: const Color(0xFF1C2838)),
+                color: const Color(0xFF171B21),
+                border: Border.all(color: const Color(0xFF2A313A)),
               ),
               child: Column(
                 children: [
@@ -388,8 +388,8 @@ class ProfileScreen extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(22),
-                color: const Color(0xFF101924),
-                border: Border.all(color: const Color(0xFF1C2838)),
+                color: const Color(0xFF171B21),
+                border: Border.all(color: const Color(0xFF2A313A)),
               ),
               child: _settingRow(
                 c,
@@ -410,15 +410,15 @@ class ProfileScreen extends StatelessWidget {
     padding: const EdgeInsets.all(18),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(22),
-      color: const Color(0xFF101924),
-      border: Border.all(color: const Color(0xFF1C2838)),
+      color: const Color(0xFF171B21),
+      border: Border.all(color: const Color(0xFF2A313A)),
     ),
     child: child,
   );
 
   Widget _divider() => const Padding(
     padding: EdgeInsets.symmetric(horizontal: 16),
-    child: Divider(height: 1, color: Color(0xFF1C2838)),
+    child: Divider(height: 1, color: Color(0xFF2A313A)),
   );
 
   Widget _bandStat(AppColors c, String label, String value, Color color) {
@@ -426,7 +426,7 @@ class ProfileScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: const Color(0xFF0C141D),
+        color: const Color(0xFF12161B),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,7 +442,7 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: GoogleFonts.spaceGrotesk(
+            style: GoogleFonts.manrope(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: color,
@@ -474,7 +474,7 @@ class ProfileScreen extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(11),
-                color: const Color(0xFF162130),
+                color: const Color(0xFF252C35),
               ),
               child: Icon(icon, color: iconColor, size: 19),
             ),
@@ -486,7 +486,7 @@ class ProfileScreen extends StatelessWidget {
                   Text(
                     title,
                     style: const TextStyle(
-                      color: Color(0xFFEEF3FB),
+                      color: Color(0xFFF3F5F8),
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
