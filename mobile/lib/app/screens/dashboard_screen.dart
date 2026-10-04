@@ -69,6 +69,10 @@ class DashboardScreen extends StatelessWidget {
               _ActivityRow(band: band, session: session, l: l),
               SizedBox(height: 14),
               _MetricsGrid(band: band, l: l),
+              if (session.restingHeartRate != null) ...[
+                SizedBox(height: 10),
+                _RestingHeartRateCard(session: session, l: l),
+              ],
               if (session.averageHeartRate != null) ...[
                 SizedBox(height: 10),
                 Text(
@@ -492,6 +496,106 @@ class _ActivityRow extends StatelessWidget {
             Icons.timer_outlined,
             active == null ? '—' : '$active',
             l.t('act_active_min'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// TZ §4.1/§8/§63: resting heart rate against the personal norm, e.g.
+/// "54 bpm · norm 52–58 · within your norm".
+class _RestingHeartRateCard extends StatelessWidget {
+  const _RestingHeartRateCard({required this.session, required this.l});
+
+  final SessionController session;
+  final AppLocalizations l;
+
+  @override
+  Widget build(BuildContext context) {
+    final rhr = session.restingHeartRate!;
+    final lo = session.restingHeartRateMin;
+    final hi = session.restingHeartRateMax;
+    final hasNorm = lo != null && hi != null;
+    final within = hasNorm && rhr >= lo && rhr <= hi;
+    final statusColor = !hasNorm
+        ? AppTheme.subtext
+        : within
+        ? AppTheme.good
+        : AppTheme.warn;
+    final status = !hasNorm
+        ? l.t('rhr_norm_pending')
+        : within
+        ? l.t('rhr_within')
+        : rhr > hi
+        ? l.t('rhr_above')
+        : l.t('rhr_below');
+
+    return Container(
+      padding: EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.outline),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l.t('rhr_label'),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.9,
+                    color: AppTheme.subtext,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: rhr.round().toString(),
+                        style: AppTheme.numeric(fontSize: 26),
+                      ),
+                      TextSpan(
+                        text: ' ${l.t('bpm')}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.subtext,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (hasNorm)
+                  Text(
+                    _fill(l.t('rhr_norm'), {
+                      'lo': lo.round(),
+                      'hi': hi.round(),
+                    }),
+                    style: TextStyle(fontSize: 12, color: AppTheme.subtext),
+                  ),
+              ],
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              color: statusColor.withValues(alpha: 0.12),
+            ),
+            child: Text(
+              status,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: statusColor,
+              ),
+            ),
           ),
         ],
       ),

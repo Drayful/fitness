@@ -97,6 +97,39 @@ class BandHistoryTest extends TestCase
             ->assertJsonPath('first_day', $d1->copy()->utc()->toDateString());
     }
 
+    public function test_resting_heart_rate_uses_lowest_tenth_and_needs_enough_readings(): void
+    {
+        // Midday UTC, so "today" readings are never in the future.
+        $this->travelTo(now()->utc()->setTime(12, 0));
+        $this->actingAs(User::factory()->create(), 'sanctum');
+        $start = now()->utc()->startOfDay()->addMinutes(5);
+        // 30 readings today: three at 50 (the lowest 10 %), the rest at 80.
+        $samples = [];
+        for ($i = 0; $i < 30; $i++) {
+            $samples[] = [
+                'kind' => 'heart_rate',
+                'measured_at' => $start->copy()->addMinutes($i)->toIso8601String(),
+                'value' => $i < 3 ? 50 : 80,
+            ];
+        }
+        // Yesterday: only 5 readings — not enough for a value.
+        for ($i = 0; $i < 5; $i++) {
+            $samples[] = [
+                'kind' => 'heart_rate',
+                'measured_at' => $start->copy()->subDay()->addMinutes($i)->toIso8601String(),
+                'value' => 40,
+            ];
+        }
+        $this->postJson('/api/measurements/samples', ['samples' => $samples])->assertOk();
+
+        $this->getJson('/api/measurements/resting-heart-rate')
+            ->assertOk()
+            ->assertJsonPath('algorithm', 'rhr-v1')
+            ->assertJsonPath('today', 50)
+            ->assertJsonCount(1, 'days')
+            ->assertJsonPath('baseline', null);
+    }
+
     public function test_daily_activity_upserts_per_day(): void
     {
         $this->actingAs(User::factory()->create(), 'sanctum');

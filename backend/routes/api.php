@@ -31,6 +31,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/measurements/samples', [BandHistoryController::class, 'storeSamples']);
     Route::get('/measurements/samples/summary', [BandHistoryController::class, 'sampleSummary']);
     Route::get('/measurements/calibration', [BandHistoryController::class, 'calibration']);
+    Route::get('/measurements/resting-heart-rate', [BandHistoryController::class, 'restingHeartRate']);
     Route::post('/activity/daily', [BandHistoryController::class, 'storeDailyActivity']);
     Route::get('/activity/daily/recent', [BandHistoryController::class, 'recentDailyActivity']);
 

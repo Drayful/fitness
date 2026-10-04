@@ -127,6 +127,54 @@ class BandHistoryController extends Controller
 
     public const CALIBRATION_DAYS = 21;
 
+    /**
+     * Resting heart rate (TZ §4.1, §8), algorithm "rhr-v1": per UTC day, the
+     * mean of the lowest 10 % of heart-rate readings, needing at least 20
+     * readings that day. The personal norm is the range over the last 14
+     * days. Kept on the backend and versioned, per TZ §65.
+     */
+    public function restingHeartRate(Request $request)
+    {
+        $userId = $request->user()->id;
+        $since = now()->utc()->startOfDay()->subDays(13);
+
+        $byDay = BodySample::query()
+            ->where('user_id', $userId)
+            ->where('kind', 'heart_rate')
+            ->where('measured_at', '>=', $since)
+            ->orderBy('measured_at')
+            ->get(['measured_at', 'value'])
+            ->groupBy(fn ($s) => $s->measured_at->copy()->utc()->toDateString());
+
+        $days = [];
+        foreach ($byDay as $date => $samples) {
+            if ($samples->count() < self::RHR_MIN_READINGS) {
+                continue;
+            }
+            $values = $samples->pluck('value')->sort()->values();
+            $take = max(1, (int) ceil($values->count() * 0.10));
+            $days[] = ['date' => $date, 'value' => round($values->take($take)->avg(), 1)];
+        }
+
+        $values = collect($days)->pluck('value');
+        $today = collect($days)->firstWhere('date', now()->utc()->toDateString());
+
+        return response()->json([
+            'algorithm' => 'rhr-v1',
+            'today' => $today['value'] ?? null,
+            'latest' => $days ? end($days) : null,
+            'baseline' => $values->count() >= 3 ? [
+                'min' => $values->min(),
+                'max' => $values->max(),
+                'average' => round($values->avg(), 1),
+                'days' => $values->count(),
+            ] : null,
+            'days' => $days,
+        ]);
+    }
+
+    public const RHR_MIN_READINGS = 20;
+
     public function storeDailyActivity(Request $request)
     {
         $data = $request->validate([

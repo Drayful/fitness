@@ -253,6 +253,9 @@ class ApiClient {
     body: {'device_model': ?deviceModel, 'samples': samples},
   );
 
+  Future<Map<String, dynamic>> restingHeartRate() =>
+      _send('GET', '/api/measurements/resting-heart-rate');
+
   Future<Map<String, dynamic>> calibration() =>
       _send('GET', '/api/measurements/calibration');
 

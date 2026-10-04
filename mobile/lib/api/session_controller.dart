@@ -117,6 +117,9 @@ class SessionController extends ChangeNotifier {
     savedDailyActivity = const [];
     bodyProfile = const BodyProfile();
     calibrationDays = null;
+    restingHeartRate = null;
+    restingHeartRateMin = null;
+    restingHeartRateMax = null;
     pendingUploadCount = 0;
     try {
       await _storage.delete(key: _tokenKey);
@@ -360,6 +363,7 @@ class SessionController extends ChangeNotifier {
       refreshDailyActivity(),
       refreshProfile(),
       refreshCalibration(),
+      refreshRestingHeartRate(),
     ]);
   }
 
@@ -498,7 +502,33 @@ class SessionController extends ChangeNotifier {
       refreshSampleSummary(),
       refreshDailyActivity(),
       refreshCalibration(),
+      refreshRestingHeartRate(),
     ]);
+  }
+
+  /// Resting heart rate from the backend (algorithm `rhr-v1`): latest daily
+  /// value and the personal 14-day range, once there are three days.
+  double? restingHeartRate;
+  double? restingHeartRateMin;
+  double? restingHeartRateMax;
+
+  Future<void> refreshRestingHeartRate() async {
+    if (!isAuthenticated) return;
+    final generation = _sessionGeneration;
+    final response = await api.restingHeartRate();
+    if (generation != _sessionGeneration || _disposed) return;
+    final latest = response['latest'];
+    restingHeartRate = latest is Map
+        ? (latest['value'] as num?)?.toDouble()
+        : null;
+    final baseline = response['baseline'];
+    restingHeartRateMin = baseline is Map
+        ? (baseline['min'] as num?)?.toDouble()
+        : null;
+    restingHeartRateMax = baseline is Map
+        ? (baseline['max'] as num?)?.toDouble()
+        : null;
+    notifyListeners();
   }
 
   /// TZ §6: days with band data so far, toward [calibrationTarget].
