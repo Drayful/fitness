@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../api/session_controller.dart';
+import '../../band/heart_rate_zones.dart';
 import '../../band/workout_model.dart';
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
@@ -91,6 +92,15 @@ class TrainingScreen extends StatelessWidget {
             ],
 
             SizedBox(height: 16),
+
+            _WeeklyZones(
+              workouts: [
+                ...band.workoutHistory,
+                ...session.savedWorkouts,
+              ],
+              age: session.bodyProfile.age,
+              l: l,
+            ),
 
             // Only recorded workouts are shown.
             _sectionLabel(c, l.t('recent')),
@@ -304,6 +314,94 @@ class _ConnectHint extends StatelessWidget {
               l.t('workout_connect_hint'),
               style: TextStyle(color: c.subtext, fontSize: 12),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// TZ §11: weekly time in easy (Z1–3) vs hard (Z4–5) zones, from workouts of
+/// the last 7 days that carry a heart-rate series.
+class _WeeklyZones extends StatelessWidget {
+  const _WeeklyZones({
+    required this.workouts,
+    required this.age,
+    required this.l,
+  });
+
+  final List<WorkoutSummary> workouts;
+  final int? age;
+  final AppLocalizations l;
+
+  @override
+  Widget build(BuildContext context) {
+    final weekAgo = DateTime.now().subtract(Duration(days: 7));
+    final maxHr = HeartRateZones.maxHeartRate(age);
+    final seen = <String>{};
+    var easy = 0;
+    var hard = 0;
+    for (final w in workouts) {
+      // The same workout can be both in memory and on the server.
+      final key = '${w.type.name}-${w.startTime.toUtc().millisecondsSinceEpoch}';
+      if (!seen.add(key) ||
+          w.startTime.isBefore(weekAgo) ||
+          w.heartRateSamples.isEmpty) {
+        continue;
+      }
+      final s = HeartRateZones.secondsInZones(
+        w.heartRateSamples,
+        WorkoutSummary.heartRateSampleSeconds,
+        maxHr,
+      );
+      easy += s[0] + s[1] + s[2];
+      hard += s[3] + s[4];
+    }
+    if (easy + hard == 0) return SizedBox.shrink();
+
+    Widget block(String label, int seconds, Color color) => Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: AppTheme.subtext),
+          ),
+          SizedBox(height: 4),
+          Text(
+            '${seconds ~/ 60} ${l.t('minutes_short')}',
+            style: AppTheme.numeric(fontSize: 22, color: color),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l.t('week_zones'),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.9,
+              color: AppTheme.subtext,
+            ),
+          ),
+          SizedBox(height: 10),
+          Row(
+            children: [
+              block(l.t('zones_easy'), easy, AppTheme.good),
+              block(l.t('zones_hard'), hard, AppTheme.warn),
+            ],
           ),
         ],
       ),

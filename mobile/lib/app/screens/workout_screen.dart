@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../api/session_controller.dart';
 import '../../band/v8_band_service.dart';
+import '../../band/heart_rate_zones.dart';
 import '../../band/workout_model.dart';
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
@@ -955,6 +956,10 @@ class _SummaryCard extends StatelessWidget {
             ],
           ),
         ),
+        if (samples.isNotEmpty) ...[
+          SizedBox(height: 14),
+          _zonesCard(context, samples),
+        ],
         SizedBox(height: 14),
         Text(l.t('workout_details'), style: _overline),
         SizedBox(height: 8),
@@ -994,6 +999,83 @@ class _SummaryCard extends StatelessWidget {
     letterSpacing: 0.9,
     color: AppTheme.subtext,
   );
+
+  /// TZ §11: time and share of the workout in each heart-rate zone.
+  Widget _zonesCard(BuildContext context, List<int> samples) {
+    final age = SessionScope.of(context).bodyProfile.age;
+    final maxHr = HeartRateZones.maxHeartRate(age);
+    final seconds = HeartRateZones.secondsInZones(
+      samples,
+      WorkoutSummary.heartRateSampleSeconds,
+      maxHr,
+    );
+    final total = samples.length * WorkoutSummary.heartRateSampleSeconds;
+    final lower = HeartRateZones.lowerBpm(maxHr);
+    final colors = [
+      AppTheme.subtext,
+      AppTheme.info,
+      AppTheme.good,
+      AppTheme.warn,
+      AppTheme.danger,
+    ];
+    String mmss(int s) => '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+
+    return _card(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l.t('workout_zones'), style: _overline),
+          SizedBox(height: 10),
+          for (var z = HeartRateZones.zoneCount - 1; z >= 0; z--)
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 74,
+                    child: Text(
+                      'Z${z + 1} · ${lower[z]}+',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: total == 0 ? 0 : seconds[z] / total,
+                        minHeight: 8,
+                        color: colors[z],
+                        backgroundColor: AppTheme.surfaceAlt,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  SizedBox(
+                    width: 74,
+                    child: Text(
+                      '${mmss(seconds[z])} · '
+                      '${total == 0 ? 0 : (seconds[z] * 100 / total).round()}%',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: 12, color: AppTheme.text),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (age == null) ...[
+            SizedBox(height: 6),
+            Text(
+              l.t('workout_zones_no_age'),
+              style: TextStyle(fontSize: 12, color: AppTheme.subtext),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   Widget _card(Widget child, {EdgeInsets padding = const EdgeInsets.all(15)}) {
     return Container(
