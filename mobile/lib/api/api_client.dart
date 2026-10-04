@@ -253,6 +253,9 @@ class ApiClient {
     body: {'device_model': ?deviceModel, 'samples': samples},
   );
 
+  Future<Map<String, dynamic>> calibration() =>
+      _send('GET', '/api/measurements/calibration');
+
   Future<Map<String, dynamic>> samplesSummary({int hours = 24}) =>
       _send('GET', '/api/measurements/samples/summary?hours=$hours');
 

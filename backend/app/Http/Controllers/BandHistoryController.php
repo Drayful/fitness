@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\BodySample;
 use App\Models\DailyActivity;
+use App\Models\SleepObservation;
+use App\Models\VitalSnapshot;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
@@ -95,6 +97,35 @@ class BandHistoryController extends Controller
 
         return response()->json(['since' => $since->toIso8601String(), 'summary' => $summary]);
     }
+
+    /**
+     * TZ §6: the personal baseline needs 7–21 days of wear. Counts distinct
+     * days with any band data (history samples, live snapshots, sleep).
+     */
+    public function calibration(Request $request)
+    {
+        $userId = $request->user()->id;
+        $days = collect()
+            ->merge(BodySample::query()->where('user_id', $userId)
+                ->selectRaw('DATE(measured_at) as d')->distinct()->pluck('d'))
+            ->merge(VitalSnapshot::query()->where('user_id', $userId)
+                ->selectRaw('DATE(measured_at) as d')->distinct()->pluck('d'))
+            ->merge(SleepObservation::query()->where('user_id', $userId)
+                ->selectRaw('DATE(ended_at) as d')->distinct()->pluck('d'))
+            ->map(fn ($d) => substr((string) $d, 0, 10))
+            ->unique()
+            ->sort()
+            ->values();
+
+        return response()->json([
+            'days_with_data' => $days->count(),
+            'target_days' => self::CALIBRATION_DAYS,
+            'first_day' => $days->first(),
+            'complete' => $days->count() >= self::CALIBRATION_DAYS,
+        ]);
+    }
+
+    public const CALIBRATION_DAYS = 21;
 
     public function storeDailyActivity(Request $request)
     {

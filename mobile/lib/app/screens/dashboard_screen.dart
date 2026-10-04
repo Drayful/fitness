@@ -757,6 +757,40 @@ class _CalibrationCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(l.t('calib_title'), style: AppTheme.numeric(fontSize: 17)),
+          // TZ §6: "Формируем вашу персональную базовую линию — 12/21 дней".
+          ...() {
+            final session = SessionScope.of(context);
+            final days = session.calibrationDays;
+            if (days == null) return <Widget>[];
+            final target = session.calibrationTarget;
+            final shown = days > target ? target : days;
+            return <Widget>[
+              SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: target == 0 ? 0 : shown / target,
+                        minHeight: 8,
+                        color: AppTheme.accent,
+                        backgroundColor: AppTheme.surfaceAlt,
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Text(
+                    _fill(l.t('calib_days'), {'n': shown, 'total': target}),
+                    style: AppTheme.numeric(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ];
+          }(),
           SizedBox(height: 8),
           Text(
             l.t('calib_sub'),

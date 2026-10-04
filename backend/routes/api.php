@@ -30,6 +30,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/measurements/sleep/recent', [MeasurementController::class, 'recentSleep']);
     Route::post('/measurements/samples', [BandHistoryController::class, 'storeSamples']);
     Route::get('/measurements/samples/summary', [BandHistoryController::class, 'sampleSummary']);
+    Route::get('/measurements/calibration', [BandHistoryController::class, 'calibration']);
     Route::post('/activity/daily', [BandHistoryController::class, 'storeDailyActivity']);
     Route::get('/activity/daily/recent', [BandHistoryController::class, 'recentDailyActivity']);
 

@@ -69,6 +69,34 @@ class BandHistoryTest extends TestCase
         $this->getJson('/api/measurements/samples/summary')->assertOk()->assertJsonPath('summary', []);
     }
 
+    public function test_calibration_counts_distinct_days_with_data(): void
+    {
+        $this->actingAs(User::factory()->create(), 'sanctum');
+        $this->getJson('/api/measurements/calibration')
+            ->assertOk()
+            ->assertJsonPath('days_with_data', 0)
+            ->assertJsonPath('target_days', 21)
+            ->assertJsonPath('complete', false);
+
+        $d1 = now()->subDays(3)->setTime(10, 0);
+        $d2 = now()->subDays(1)->setTime(10, 0);
+        $this->postJson('/api/measurements/samples', ['samples' => [
+            ['kind' => 'heart_rate', 'measured_at' => $d1->toIso8601String(), 'value' => 60],
+            ['kind' => 'heart_rate', 'measured_at' => $d1->copy()->addHour()->toIso8601String(), 'value' => 62],
+            ['kind' => 'spo2', 'measured_at' => $d2->toIso8601String(), 'value' => 97],
+        ]])->assertOk();
+        $this->postJson('/api/measurements/vitals', [
+            'client_id' => 'v-1',
+            'measured_at' => $d2->toIso8601String(),
+            'heart_rate' => 70,
+        ])->assertCreated();
+
+        $this->getJson('/api/measurements/calibration')
+            ->assertOk()
+            ->assertJsonPath('days_with_data', 2)
+            ->assertJsonPath('first_day', $d1->copy()->utc()->toDateString());
+    }
+
     public function test_daily_activity_upserts_per_day(): void
     {
         $this->actingAs(User::factory()->create(), 'sanctum');

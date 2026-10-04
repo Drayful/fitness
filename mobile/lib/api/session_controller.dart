@@ -116,6 +116,7 @@ class SessionController extends ChangeNotifier {
     sampleSummary = const {};
     savedDailyActivity = const [];
     bodyProfile = const BodyProfile();
+    calibrationDays = null;
     pendingUploadCount = 0;
     try {
       await _storage.delete(key: _tokenKey);
@@ -358,6 +359,7 @@ class SessionController extends ChangeNotifier {
       refreshSampleSummary(),
       refreshDailyActivity(),
       refreshProfile(),
+      refreshCalibration(),
     ]);
   }
 
@@ -492,7 +494,26 @@ class SessionController extends ChangeNotifier {
           },
       ], deviceModel: model?.name);
     }
-    await Future.wait([refreshSampleSummary(), refreshDailyActivity()]);
+    await Future.wait([
+      refreshSampleSummary(),
+      refreshDailyActivity(),
+      refreshCalibration(),
+    ]);
+  }
+
+  /// TZ §6: days with band data so far, toward [calibrationTarget].
+  int? calibrationDays;
+  int calibrationTarget = 21;
+
+  Future<void> refreshCalibration() async {
+    if (!isAuthenticated) return;
+    final generation = _sessionGeneration;
+    final response = await api.calibration();
+    if (generation != _sessionGeneration || _disposed) return;
+    calibrationDays = (response['days_with_data'] as num?)?.toInt();
+    calibrationTarget =
+        (response['target_days'] as num?)?.toInt() ?? calibrationTarget;
+    notifyListeners();
   }
 
   Future<void> refreshSampleSummary() async {
