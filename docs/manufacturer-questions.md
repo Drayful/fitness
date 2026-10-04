@@ -64,6 +64,12 @@ Please answer the questions below for each exact device model and firmware versi
 31. Provide validation reports for the exact hardware/firmware and intended age range, regional conformity documents, warranty terms, expected support period and SDK/firmware change notification policy. Please distinguish wellness capabilities from certified medical claims.
 32. Please supply one test device of each supported hardware revision, current firmware, reference apps, a 24-hour anonymized recording with expected decoded output, and a technical contact for protocol questions.
 
+### G Questions raised while implementing history sync
+
+33. V8 `0x6B` (`getObtainDetailedSleepData`) returns 130-byte records with 60 bytes of packed 4-bit "sleep level" values and 60 bytes of 4-bit "activity" values. What does each level code mean, how many minutes does one value cover, and how does it relate to `0x53`? Note: the supplied `ResolveUtil.getObtainDetailedSleepData` always copies from offsets 10 and 70, so every record after the first repeats the first one. We do not use `0x6B` until this is documented.
+34. `android/sleep.txt` in the V8 SDK defines the `0x53` stage rule (1-minute codes 1 deep / 2 light / 3 REM / other awake; 5-minute values divided by 5 with thresholds 2 / 8 / 20). Does the same rule apply to 2208A `0x53`? The 2208A documentation has no stage rule, so the app currently shows only duration and timing for 2208A.
+35. `0x54` dynamic heart rate holds 15 values per record. What is the interval between them (we assume 1 minute)? For `0x2A` auto measurement, what is the difference between mode 1 and mode 2 (interval), what interval limits apply per type, and which types (HR, SpO2, temperature, HRV) does each firmware support? The app currently sets interval mode: HR 5 min, HRV and temperature 30 min, SpO2 60 min.
+
 Please return a table with: question number, model, firmware, supported/not supported, limitations, command/API, evidence/example and expected delivery date for missing information. For undocumented or unavailable features, please state that explicitly.
 
 Thank you.
