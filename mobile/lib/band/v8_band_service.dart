@@ -6,6 +6,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'band_alarm.dart';
 import 'band_history.dart';
 import 'band_variant.dart';
 import 'body_profile.dart';
@@ -1196,6 +1197,61 @@ class V8BandService extends ChangeNotifier {
         isHistorySyncing = false;
         notifyListeners();
       }
+    }
+  }
+
+  // ── Wake-up alarm on the band (0x23) ──
+
+  static const _alarmKey = 'band_alarm_v1';
+
+  /// Last alarm set from the app; the band keeps it itself once sent.
+  BandAlarm? alarm;
+
+  Future<void> loadAlarm() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      alarm = BandAlarm.fromJson(prefs.getString(_alarmKey));
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Replaces the band's alarm list with [value]. Throws when the band is
+  /// not connected or rejects it, so the UI can say so.
+  Future<void> setAlarm(BandAlarm value) async {
+    if (!_ready || !variantConfirmed) {
+      throw StateError('Bracelet is not connected');
+    }
+    await _sendPacket(BandAlarm.cmdSetAlarms, BandAlarm.packet([value]));
+    alarm = value;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_alarmKey, value.toJson());
+    } catch (_) {}
+  }
+
+  /// Like [sendCommand], for vendor packets that are not the 16-byte frame
+  /// (e.g. the 41-byte alarm list). Long write in case MTU stayed small.
+  Future<Uint8List> _sendPacket(
+    int cmd,
+    Uint8List packet, {
+    Duration timeout = const Duration(seconds: 8),
+  }) async {
+    final tx = _tx;
+    if (!_ready || tx == null) throw StateError('Bracelet is not ready');
+    if (_pending.containsKey(cmd) || _streamCollectors.containsKey(cmd)) {
+      throw StateError('Command already in progress');
+    }
+    final completer = Completer<Uint8List>();
+    _pending[cmd] = completer;
+    try {
+      final result = await Future.wait<Object?>([
+        tx.write(packet, withoutResponse: false, allowLongWrite: true),
+        completer.future,
+      ], eagerError: true).timeout(timeout);
+      return result[1] as Uint8List;
+    } finally {
+      if (identical(_pending[cmd], completer)) _pending.remove(cmd);
     }
   }
 

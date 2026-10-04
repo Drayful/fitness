@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../api/session_controller.dart';
+import '../../band/band_alarm.dart';
 import '../../band/body_profile.dart';
+import '../../band/v8_band_service.dart';
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/locale_controller.dart';
@@ -498,6 +500,34 @@ class ProfileScreen extends StatelessWidget {
                   _divider(),
                   _settingRow(
                     c,
+                    Icons.alarm,
+                    c.warn,
+                    l.t('alarm'),
+                    l.t('alarm_sub'),
+                    trailingText: band.alarm == null || !band.alarm!.enabled
+                        ? l.t('alarm_off')
+                        : MaterialLocalizations.of(context).formatTimeOfDay(
+                            TimeOfDay(
+                              hour: band.alarm!.hour,
+                              minute: band.alarm!.minute,
+                            ),
+                            alwaysUse24HourFormat: true,
+                          ),
+                    onTap: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: AppTheme.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      builder: (_) => _AlarmSheet(band: band),
+                    ),
+                  ),
+                  _divider(),
+                  _settingRow(
+                    c,
                     Icons.lock_outline,
                     c.warn,
                     l.t('privacy'),
@@ -847,6 +877,151 @@ class _BodyProfileSheetState extends State<_BodyProfileSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Text(l.t('save')),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// TZ §14: wake-up alarm played by the band's vibration motor.
+class _AlarmSheet extends StatefulWidget {
+  const _AlarmSheet({required this.band});
+
+  final V8BandService band;
+
+  @override
+  State<_AlarmSheet> createState() => _AlarmSheetState();
+}
+
+class _AlarmSheetState extends State<_AlarmSheet> {
+  late TimeOfDay _time = widget.band.alarm == null
+      ? TimeOfDay(hour: 7, minute: 0)
+      : TimeOfDay(
+          hour: widget.band.alarm!.hour,
+          minute: widget.band.alarm!.minute,
+        );
+  late Set<int> _days = widget.band.alarm?.weekdays.toSet() ?? {1, 2, 3, 4, 5};
+  late bool _enabled = widget.band.alarm?.enabled ?? true;
+  bool _saving = false;
+  String? _error;
+
+  Future<void> _save() async {
+    final l = AppLocalizations.of(context);
+    if (_enabled && _days.isEmpty) {
+      setState(() => _error = l.t('alarm_pick_days'));
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.band.setAlarm(
+        BandAlarm(
+          hour: _time.hour,
+          minute: _time.minute,
+          weekdays: _days,
+          enabled: _enabled,
+        ),
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = l.t('alarm_failed');
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final loc = MaterialLocalizations.of(context);
+    // Monday-first labels; DateTime.weekday numbering (1 = Monday).
+    final names = loc.narrowWeekdays; // Sunday-first
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 18, 20, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l.t('alarm'),
+                  style: AppTheme.numeric(fontSize: 18),
+                ),
+              ),
+              Switch(
+                value: _enabled,
+                onChanged: (v) => setState(() => _enabled = v),
+              ),
+            ],
+          ),
+          Text(
+            l.t('alarm_note'),
+            style: TextStyle(fontSize: 12, color: AppTheme.subtext),
+          ),
+          SizedBox(height: 14),
+          Center(
+            child: TextButton(
+              onPressed: () async {
+                final picked = await showTimePicker(
+                  context: context,
+                  initialTime: _time,
+                );
+                if (picked != null) setState(() => _time = picked);
+              },
+              child: Text(
+                loc.formatTimeOfDay(_time, alwaysUse24HourFormat: true),
+                style: AppTheme.numeric(fontSize: 40, color: AppTheme.accent),
+              ),
+            ),
+          ),
+          SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            children: [
+              for (final d in [1, 2, 3, 4, 5, 6, 7])
+                FilterChip(
+                  label: Text(names[d % 7]),
+                  selected: _days.contains(d),
+                  onSelected: (on) => setState(() {
+                    _days = {..._days};
+                    if (on) {
+                      _days.add(d);
+                    } else {
+                      _days.remove(d);
+                    }
+                  }),
+                ),
+            ],
+          ),
+          if (_error != null) ...[
+            SizedBox(height: 10),
+            Text(_error!, style: TextStyle(color: AppTheme.danger)),
+          ],
+          SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _saving || !widget.band.isConnected ? null : _save,
+              child: _saving
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(
+                      widget.band.isConnected
+                          ? l.t('save')
+                          : l.t('alarm_connect_first'),
+                    ),
             ),
           ),
         ],

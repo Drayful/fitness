@@ -49,6 +49,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     _session.load();
     // Reconnect to last session's watch instead of making the user rescan.
     unawaited(_bandService.restoreLastDevice());
+    unawaited(_bandService.loadAlarm());
     _startServerSync();
   }
 
