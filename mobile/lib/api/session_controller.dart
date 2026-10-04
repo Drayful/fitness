@@ -153,7 +153,9 @@ class SessionController extends ChangeNotifier {
 
   /// Save pending summaries securely per account before attempting delivery.
   /// Stable IDs make a retry after a lost HTTP response safe on the backend.
-  Future<void> uploadWorkout(WorkoutSummary s) {
+  /// [intensity] (1..10) overrides the heart-rate estimate, e.g. for a
+  /// workout entered by hand without heart-rate data.
+  Future<void> uploadWorkout(WorkoutSummary s, {int? intensity}) {
     final samples = s.heartRateSamples
         .where((bpm) => bpm >= 30 && bpm <= 240)
         .toList();
@@ -163,7 +165,9 @@ class SessionController extends ChangeNotifier {
       'performed_at': s.startTime.toUtc().toIso8601String(),
       'type': s.type.name,
       'duration_minutes': (s.durationSeconds / 60).round().clamp(1, 600),
-      'intensity': _intensityFromHr(s.averageHeartRate ?? s.heartRate),
+      'intensity':
+          intensity?.clamp(1, 10) ??
+          _intensityFromHr(s.averageHeartRate ?? s.heartRate),
       'metrics': {
         'steps': s.steps,
         'calories': s.calories,

@@ -207,6 +207,52 @@ void main() {
     session.dispose();
   });
 
+  test('manual workout sends the chosen intensity', () async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({
+      'auth_token': 'secure-token',
+      'auth_user_email': 'athlete@example.com',
+    });
+    final posted = <Map<String, dynamic>>[];
+    final session = SessionController(
+      api: ApiClient(
+        baseUrl: 'https://example.test',
+        client: MockClient((req) async {
+          if (req.method == 'POST' && req.url.path == '/api/workouts') {
+            posted.add(jsonDecode(req.body) as Map<String, dynamic>);
+            return http.Response(
+              '{"workout":{"id":1}}',
+              201,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response(
+            '{}',
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      ),
+    );
+    await session.load();
+    await session.uploadWorkout(
+      WorkoutSummary(
+        type: ExerciseType.yoga,
+        startTime: DateTime.utc(2026, 10, 4, 7),
+        heartRate: 0,
+        steps: 0,
+        calories: 0,
+        durationSeconds: 45 * 60,
+        distanceM: 0,
+      ),
+      intensity: 3,
+    );
+    expect(posted.single['intensity'], 3);
+    expect(posted.single['duration_minutes'], 45);
+    expect(posted.single['type'], 'yoga');
+    session.dispose();
+  });
+
   test('pending uploads are isolated by signed-in account', () async {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({
