@@ -9,6 +9,8 @@ import '../../main.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/locale_controller.dart';
 import '../theme.dart';
+import '../notifications/alert_rules.dart';
+import '../notifications/notification_service.dart';
 import '../theme_controller.dart';
 import 'band_connect_screen.dart';
 
@@ -528,6 +530,26 @@ class ProfileScreen extends StatelessWidget {
                   _divider(),
                   _settingRow(
                     c,
+                    Icons.notifications_outlined,
+                    c.accent,
+                    l.t('notifications'),
+                    l.t('notifications_sub'),
+                    onTap: () => showModalBottomSheet<void>(
+                      context: context,
+                      backgroundColor: AppTheme.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      builder: (_) => _NotificationsSheet(
+                        service: NotificationScope.of(context),
+                      ),
+                    ),
+                  ),
+                  _divider(),
+                  _settingRow(
+                    c,
                     Icons.lock_outline,
                     c.warn,
                     l.t('privacy'),
@@ -1025,6 +1047,50 @@ class _AlarmSheetState extends State<_AlarmSheet> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// TZ §31: the user controls which alert categories may notify them.
+class _NotificationsSheet extends StatelessWidget {
+  const _NotificationsSheet({required this.service});
+
+  final NotificationService service;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return ListenableBuilder(
+      listenable: service,
+      builder: (context, _) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(8, 16, 8, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  l.t('notifications'),
+                  style: AppTheme.numeric(fontSize: 18),
+                ),
+              ),
+              SizedBox(height: 6),
+              for (final c in AlertCategory.values)
+                SwitchListTile(
+                  value: service.isEnabled(c),
+                  onChanged: (on) => service.setEnabled(c, on),
+                  title: Text(l.t('notif_${c.name}_title')),
+                  subtitle: Text(
+                    l.t('notif_${c.name}_setting'),
+                    style: TextStyle(fontSize: 12, color: AppTheme.subtext),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

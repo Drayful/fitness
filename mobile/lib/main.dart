@@ -7,6 +7,8 @@ import 'api/session_controller.dart';
 import 'app/auth_gate.dart';
 import 'app/l10n/app_localizations.dart';
 import 'app/l10n/locale_controller.dart';
+import 'app/notifications/alert_rules.dart';
+import 'app/notifications/notification_service.dart';
 import 'app/theme.dart';
 import 'app/theme_controller.dart';
 import 'band/v8_band_service.dart';
@@ -50,7 +52,53 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     // Reconnect to last session's watch instead of making the user rescan.
     unawaited(_bandService.restoreLastDevice());
     unawaited(_bandService.loadAlarm());
+    unawaited(_notifications.init());
+    _bandService.addListener(_evaluateAlerts);
     _startServerSync();
+  }
+
+  // ── Notifications (TZ §31) ──
+  final _notifications = NotificationService();
+  late final _alertRules = AlertRules(notify: _onAlert);
+  DateTime? _lastAlertVitalsAt;
+
+  void _onAlert(AlertCategory category, Map<String, Object> params) {
+    final l = AppLocalizations(_localeController.locale);
+    var body = l.t('notif_${category.name}_body');
+    params.forEach((k, v) => body = body.replaceAll('{$k}', '$v'));
+    unawaited(
+      _notifications.show(category, l.t('notif_${category.name}_title'), body),
+    );
+  }
+
+  /// Feeds band state into the alert rules. Also run from the periodic
+  /// timer, because "watch away for 30 min" needs time to pass.
+  void _evaluateAlerts() {
+    final band = _bandService;
+    _alertRules.onBattery(band.deviceInfo?.batteryPercent);
+    _alertRules.onConnection(
+      connected: band.isConnected,
+      remembered: band.hasRememberedDevice,
+    );
+    // Only count genuinely new live readings, not every unrelated update.
+    if (band.liveVitalsAt != null && band.liveVitalsAt != _lastAlertVitalsAt) {
+      _lastAlertVitalsAt = band.liveVitalsAt;
+      _alertRules.onLiveHeartRate(
+        band.liveVitals?.heartRate,
+        workoutActive: band.isWorkoutActive,
+      );
+    }
+    final sleep = band.sleepSummary;
+    if (sleep != null && sleep.hasData) {
+      _alertRules.onSleep(
+        bedTime: sleep.bedTime,
+        asleepMinutes: sleep.hasValidatedStages
+            ? sleep.sleepMinutes
+            : sleep.observedMinutes,
+      );
+    }
+    _alertRules.onStaleSync(stale: band.isSyncStale, lastSyncAt: band.lastSyncAt);
+    _alertRules.onHistorySynced(band.historySyncCount);
   }
 
   /// Server-side history (averages, saved workouts, sleep) only changed on
@@ -63,6 +111,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
       if (_session.isAuthenticated) {
         unawaited(_session.synchronize().catchError((_) {}));
       }
+      _evaluateAlerts();
     });
   }
 
@@ -144,6 +193,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _serverSyncTimer?.cancel();
     _bandService.removeListener(_saveVitals);
+    _bandService.removeListener(_evaluateAlerts);
     _bandService.removeListener(_saveSleep);
     _session.removeListener(_saveSleep);
     _bandService.removeListener(_saveHistory);
@@ -152,6 +202,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     _bandService.dispose();
     _localeController.dispose();
     _themeController.dispose();
+    _notifications.dispose();
     _session.dispose();
     super.dispose();
   }
@@ -181,6 +232,8 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
           controller: _localeController,
           child: ThemeScope(
             controller: _themeController,
+            child: NotificationScope(
+            service: _notifications,
             child: AnimatedBuilder(
             animation: Listenable.merge([_localeController, _themeController]),
             builder: (context, _) {
@@ -206,6 +259,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
                 home: const AuthGate(),
               );
             },
+          ),
           ),
           ),
         ),
