@@ -147,6 +147,9 @@ class SessionController extends ChangeNotifier {
   /// Save pending summaries securely per account before attempting delivery.
   /// Stable IDs make a retry after a lost HTTP response safe on the backend.
   Future<void> uploadWorkout(WorkoutSummary s) {
+    final samples = s.heartRateSamples
+        .where((bpm) => bpm >= 30 && bpm <= 240)
+        .toList();
     final payload = <String, dynamic>{
       'client_id':
           '${s.type.name}-${s.startTime.toUtc().microsecondsSinceEpoch}',
@@ -162,9 +165,43 @@ class SessionController extends ChangeNotifier {
         'average_heart_rate': s.averageHeartRate,
         'max_heart_rate': s.maxHeartRate,
         'duration_seconds': s.durationSeconds,
+        // Keys only when present: a backend without chart support rejects
+        // unknown metrics keys even with null values.
+        if (samples.isNotEmpty) 'heart_rate_samples': samples,
+        if (samples.isNotEmpty)
+          'heart_rate_sample_seconds': WorkoutSummary.heartRateSampleSeconds,
       },
     };
     return _queueUpload(payload);
+  }
+
+  static const _chartMetricKeys = [
+    'heart_rate_samples',
+    'heart_rate_sample_seconds',
+  ];
+
+  /// Sends one queued workout. If a backend that predates the heart-rate
+  /// chart rejects the payload (422), retry once without the chart so the
+  /// workout itself is not stuck in the queue forever.
+  Future<void> _sendWorkout(Map<String, dynamic> next) async {
+    final metrics = Map<String, dynamic>.from(next['metrics'] as Map);
+    Future<void> send(Map<String, dynamic> m) => api.createWorkout(
+      performedAt: DateTime.parse(next['performed_at'] as String),
+      type: next['type'] as String,
+      durationMinutes: next['duration_minutes'] as int,
+      intensity: next['intensity'] as int,
+      clientId: next['client_id'] as String,
+      metrics: m,
+    );
+    try {
+      await send(metrics);
+    } on ApiException catch (e) {
+      final hasChart = _chartMetricKeys.any(metrics.containsKey);
+      if (e.statusCode != 422 || !hasChart) rethrow;
+      await send(
+        Map.of(metrics)..removeWhere((k, _) => _chartMetricKeys.contains(k)),
+      );
+    }
   }
 
   Future<void> retryPendingWorkouts() => _queueUpload(null);
@@ -194,14 +231,7 @@ class SessionController extends ChangeNotifier {
       while (pending.isNotEmpty) {
         if (generation != _sessionGeneration || _disposed) return;
         final next = pending.first;
-        await api.createWorkout(
-          performedAt: DateTime.parse(next['performed_at'] as String),
-          type: next['type'] as String,
-          durationMinutes: next['duration_minutes'] as int,
-          intensity: next['intensity'] as int,
-          clientId: next['client_id'] as String,
-          metrics: Map<String, dynamic>.from(next['metrics'] as Map),
-        );
+        await _sendWorkout(next);
         pending.removeAt(0);
         await _storage.write(key: key, value: jsonEncode(pending));
         await refreshPendingUploadCount();
@@ -297,6 +327,12 @@ class SessionController extends ChangeNotifier {
             (metrics['duration_seconds'] as num?)?.toInt() ??
             ((row['duration_minutes'] as num?)?.toInt() ?? 0) * 60,
         distanceM: (metrics['distance_m'] as num?)?.toDouble() ?? 0,
+        heartRateSamples: (metrics['heart_rate_samples'] is List)
+            ? (metrics['heart_rate_samples'] as List)
+                  .whereType<num>()
+                  .map((v) => v.toInt())
+                  .toList()
+            : const [],
       );
     }).toList();
     notifyListeners();

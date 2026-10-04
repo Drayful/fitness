@@ -26,7 +26,7 @@ class WorkoutController extends Controller
             'intensity' => ['required', 'integer', 'min:1', 'max:10'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'client_id' => ['nullable', 'string', 'max:100'],
-            'metrics' => ['nullable', 'array:steps,calories,distance_m,last_heart_rate,average_heart_rate,max_heart_rate,duration_seconds'],
+            'metrics' => ['nullable', 'array:steps,calories,distance_m,last_heart_rate,average_heart_rate,max_heart_rate,duration_seconds,heart_rate_samples,heart_rate_sample_seconds'],
             'metrics.steps' => ['nullable', 'integer', 'min:0'],
             'metrics.calories' => ['nullable', 'numeric', 'min:0'],
             'metrics.distance_m' => ['nullable', 'numeric', 'min:0'],
@@ -34,6 +34,11 @@ class WorkoutController extends Controller
             'metrics.average_heart_rate' => ['nullable', 'integer', 'min:30', 'max:240'],
             'metrics.max_heart_rate' => ['nullable', 'integer', 'min:30', 'max:240'],
             'metrics.duration_seconds' => ['nullable', 'integer', 'min:0'],
+            // Heart rate through the session for the summary chart: one value
+            // per sample interval, capped at four hours of 5-second samples.
+            'metrics.heart_rate_samples' => ['nullable', 'array', 'max:2880'],
+            'metrics.heart_rate_samples.*' => ['integer', 'min:30', 'max:240'],
+            'metrics.heart_rate_sample_seconds' => ['nullable', 'integer', 'min:1', 'max:60', 'required_with:metrics.heart_rate_samples'],
         ]);
 
         if (! empty($data['client_id'])) {

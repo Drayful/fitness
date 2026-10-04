@@ -63,6 +63,26 @@ class DataQualityTest extends TestCase
         $this->assertDatabaseCount('workouts', 2);
     }
 
+    public function test_workout_keeps_heart_rate_samples_and_rejects_bad_ones(): void
+    {
+        $this->actingAs(User::factory()->create(), 'sanctum');
+        $body = ['client_id' => 'run-hr', 'performed_at' => '2026-10-04T10:00:00Z', 'type' => 'run', 'duration_minutes' => 1, 'intensity' => 5,
+            'metrics' => ['heart_rate_samples' => [92, 110, 131], 'heart_rate_sample_seconds' => 5]];
+        $this->postJson('/api/workouts', $body)->assertCreated()
+            ->assertJsonPath('workout.metrics.heart_rate_samples', [92, 110, 131])
+            ->assertJsonPath('workout.metrics.heart_rate_sample_seconds', 5);
+
+        $bad = $body;
+        $bad['client_id'] = 'run-hr-bad';
+        $bad['metrics']['heart_rate_samples'] = [92, 400];
+        $this->postJson('/api/workouts', $bad)->assertUnprocessable();
+
+        $noInterval = $body;
+        $noInterval['client_id'] = 'run-hr-nointerval';
+        unset($noInterval['metrics']['heart_rate_sample_seconds']);
+        $this->postJson('/api/workouts', $noInterval)->assertUnprocessable();
+    }
+
     public function test_passwords_exceeding_bcrypt_byte_limit_are_validation_errors(): void
     {
         foreach ([str_repeat('я', 40), "password\0invalid"] as $password) {

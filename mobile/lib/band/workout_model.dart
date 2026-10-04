@@ -169,8 +169,8 @@ class WorkoutSummary {
   final int? maxHeartRate;
 
   /// Heart rate through the session, every [heartRateSampleSeconds] seconds.
-  /// Kept on the phone for the summary chart; the backend does not accept it
-  /// in `metrics` yet. Empty for workouts loaded from the server.
+  /// Uploaded in `metrics.heart_rate_samples` and read back with the history,
+  /// so the chart survives a reinstall. Empty when none was recorded.
   final List<int> heartRateSamples;
 
   DateTime get endTime => startTime.add(Duration(seconds: durationSeconds));

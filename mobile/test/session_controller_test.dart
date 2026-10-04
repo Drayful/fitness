@@ -65,6 +65,67 @@ void main() {
     second.dispose();
   });
 
+  test('workout heart-rate chart falls back when backend rejects it', () async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({
+      'auth_token': 'secure-token',
+      'auth_user_email': 'athlete@example.com',
+    });
+    final posted = <Map<String, dynamic>>[];
+    final session = SessionController(
+      api: ApiClient(
+        baseUrl: 'https://example.test',
+        client: MockClient((req) async {
+          if (req.method != 'POST' || req.url.path != '/api/workouts') {
+            return http.Response(
+              '{}',
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          posted.add(body);
+          // A backend that predates the chart rejects the unknown keys.
+          final rejects = (body['metrics'] as Map).containsKey(
+            'heart_rate_samples',
+          );
+          return http.Response(
+            rejects ? '{"message":"invalid"}' : '{"workout":{"id":1}}',
+            rejects ? 422 : 201,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      ),
+    );
+    await session.load();
+    await session.uploadWorkout(
+      WorkoutSummary(
+        type: ExerciseType.run,
+        startTime: DateTime.utc(2026, 10, 4),
+        heartRate: 120,
+        steps: 100,
+        calories: 10,
+        durationSeconds: 15,
+        distanceM: 0,
+        heartRateSamples: const [95, 400, 118, 120],
+      ),
+    );
+    expect(posted, hasLength(2));
+    // Out-of-range readings are dropped before upload.
+    expect(posted[0]['metrics']['heart_rate_samples'], [95, 118, 120]);
+    expect(
+      posted[0]['metrics']['heart_rate_sample_seconds'],
+      WorkoutSummary.heartRateSampleSeconds,
+    );
+    expect(
+      (posted[1]['metrics'] as Map).containsKey('heart_rate_samples'),
+      isFalse,
+    );
+    expect(posted[1]['client_id'], posted[0]['client_id']);
+    expect(session.pendingUploadCount, 0);
+    session.dispose();
+  });
+
   test('pending uploads are isolated by signed-in account', () async {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({
