@@ -60,8 +60,10 @@ class DashboardScreen extends StatelessWidget {
               SizedBox(height: 18),
               if (connected) ...[
                 Center(child: _StepsRing(steps: vitals?.steps, l: l)),
-                SizedBox(height: 18),
+                SizedBox(height: 14),
               ],
+              _ActivityRow(band: band, session: session, l: l),
+              SizedBox(height: 14),
               _MetricsGrid(band: band, l: l),
               if (session.averageHeartRate != null) ...[
                 SizedBox(height: 10),
@@ -390,6 +392,96 @@ class _StepsRing extends StatelessWidget {
               'goal': fmt.formatDecimal(DashboardScreen.stepGoal),
             }),
             style: TextStyle(fontSize: 11, color: AppTheme.subtext),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Distance · calories · active time for today (TZ §20–21): live packet
+/// first, then today's totals from the band memory or the server.
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow({
+    required this.band,
+    required this.session,
+    required this.l,
+  });
+
+  final V8BandService band;
+  final SessionController session;
+  final AppLocalizations l;
+
+  @override
+  Widget build(BuildContext context) {
+    final live = band.liveVitals;
+    final now = DateTime.now();
+    bool isToday(DateTime d) =>
+        d.year == now.year && d.month == now.month && d.day == now.day;
+
+    DailyActivity? stored;
+    for (final d in band.dailyActivity) {
+      if (isToday(d.date)) stored = d;
+    }
+    Map<String, dynamic>? server;
+    for (final row in session.savedDailyActivity) {
+      final date = DateTime.tryParse('${row['date']}');
+      if (date != null && isToday(date)) server = row;
+    }
+
+    final distance =
+        live?.distanceKm ??
+        stored?.distanceKm ??
+        ((server?['distance_m'] as num?)?.toDouble() ?? -1) / 1000;
+    final calories =
+        live?.caloriesKcal ??
+        stored?.calories ??
+        (server?['calories'] as num?)?.toDouble();
+    final active =
+        live?.exerciseMinutes ??
+        stored?.activeMinutes ??
+        (server?['active_minutes'] as num?)?.toInt();
+    if ((distance < 0) && calories == null && active == null) {
+      return SizedBox.shrink();
+    }
+
+    Widget stat(IconData icon, String value, String label) => Expanded(
+      child: Column(
+        children: [
+          Icon(icon, size: 18, color: AppTheme.accent),
+          SizedBox(height: 4),
+          Text(value, style: AppTheme.numeric(fontSize: 17)),
+          Text(
+            label,
+            style: TextStyle(fontSize: 11, color: AppTheme.subtext),
+          ),
+        ],
+      ),
+    );
+
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.outline),
+      ),
+      child: Row(
+        children: [
+          stat(
+            Icons.route_outlined,
+            distance < 0 ? '—' : distance.toStringAsFixed(2),
+            l.t('act_distance_km'),
+          ),
+          stat(
+            Icons.local_fire_department_outlined,
+            calories == null ? '—' : calories.round().toString(),
+            l.t('kcal'),
+          ),
+          stat(
+            Icons.timer_outlined,
+            active == null ? '—' : '$active',
+            l.t('act_active_min'),
           ),
         ],
       ),

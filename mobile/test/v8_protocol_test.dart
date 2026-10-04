@@ -29,6 +29,27 @@ void main() {
     );
     expect(n.sublist(0, 7), [0x28, 2, 1, 0, 0, 0, 0]);
   });
+  test('live packet carries calories, distance and exercise time', () {
+    final p = Uint8List(25);
+    p[0] = 0x09;
+    void u32(int o, int v) => p.setRange(o, o + 4, [
+      v & 0xFF,
+      (v >> 8) & 0xFF,
+      (v >> 16) & 0xFF,
+      (v >> 24) & 0xFF,
+    ]);
+    u32(1, 5230); // steps
+    u32(5, 18050); // 180.50 kcal
+    u32(9, 315); // 3.15 km
+    u32(13, 2520); // 42 min in seconds
+    p[21] = 72;
+    final v = V8Protocol.parseLivePacket(p)!;
+    expect(v.steps, 5230);
+    expect(v.caloriesKcal, closeTo(180.5, 0.001));
+    expect(v.distanceKm, closeTo(3.15, 0.001));
+    expect(v.exerciseMinutes, 42);
+    expect(v.heartRate, 72);
+  });
   group('V8 sleep stages follow the SDK rule (sleep.txt)', () {
     test('one-minute records carry stage codes', () {
       final p = sleepPacket(size: 130, length: 5)

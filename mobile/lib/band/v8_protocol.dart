@@ -410,8 +410,19 @@ class V8Protocol {
     final tempRaw = data[22] | (data[23] << 8);
     final spo2 = data.length > 24 ? data[24] : 0;
 
+    int u32(int o) =>
+        data[o] | (data[o + 1] << 8) | (data[o + 2] << 16) | (data[o + 3] << 24);
+    // Same layout in both SDKs (`getActivityData`): calories and distance
+    // are hundredths, exercise time is in seconds.
+    final calories = u32(5) / 100.0;
+    final distanceKm = u32(9) / 100.0;
+    final exerciseSeconds = u32(13);
+
     return LiveVitals(
       steps: steps,
+      caloriesKcal: calories <= 20000 ? calories : null,
+      distanceKm: distanceKm <= 500 ? distanceKm : null,
+      exerciseMinutes: exerciseSeconds <= 86400 ? exerciseSeconds ~/ 60 : null,
       heartRate: heartRate > 0 ? heartRate : null,
       temperatureC: tempRaw > 0 ? tempRaw / 10.0 : null,
       spo2: spo2 > 0 && spo2 <= 100 ? spo2 : null,
@@ -425,9 +436,17 @@ class LiveVitals {
     this.heartRate,
     this.temperatureC,
     this.spo2,
+    this.caloriesKcal,
+    this.distanceKm,
+    this.exerciseMinutes,
   });
 
   final int steps;
+
+  /// Today's totals as the band counts them (TZ §20–21).
+  final double? caloriesKcal;
+  final double? distanceKm;
+  final int? exerciseMinutes;
   final int? heartRate;
   final double? temperatureC;
   final int? spo2;
