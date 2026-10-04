@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:fitness_app/api/api_client.dart';
 import 'package:fitness_app/api/session_controller.dart';
+import 'package:fitness_app/band/band_history.dart';
 import 'package:fitness_app/band/workout_model.dart';
 import 'package:fitness_app/band/sleep_model.dart';
 import 'package:fitness_app/band/band_variant.dart';
@@ -123,6 +124,86 @@ void main() {
     );
     expect(posted[1]['client_id'], posted[0]['client_id']);
     expect(session.pendingUploadCount, 0);
+    session.dispose();
+  });
+
+  test('band history upload sends only new samples and retries on failure', () async {
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({
+      'auth_token': 'secure-token',
+      'auth_user_email': 'athlete@example.com',
+    });
+    final batches = <List<dynamic>>[];
+    final dayPosts = <List<dynamic>>[];
+    var online = true;
+    final session = SessionController(
+      api: ApiClient(
+        baseUrl: 'https://example.test',
+        client: MockClient((req) async {
+          final ok = http.Response(
+            '{"stored":1}',
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+          if (req.method != 'POST') {
+            return http.Response(
+              '{}',
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          if (!online) {
+            return http.Response(
+              '{"message":"offline"}',
+              503,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          if (req.url.path == '/api/measurements/samples') {
+            batches.add(body['samples'] as List);
+          } else if (req.url.path == '/api/activity/daily') {
+            dayPosts.add(body['days'] as List);
+          }
+          return ok;
+        }),
+      ),
+    );
+    await session.load();
+    final t0 = DateTime.utc(2026, 10, 4, 22);
+    final first = [
+      BodySample(BodyMetric.heartRate, t0, 60),
+      BodySample(BodyMetric.heartRate, t0.add(const Duration(minutes: 1)), 62),
+      BodySample(BodyMetric.spo2, t0, 97),
+    ];
+    final day = DailyActivity(
+      date: DateTime(2026, 10, 4),
+      steps: 4200,
+      activeMinutes: 30,
+      distanceKm: 3.1,
+      calories: 180.5,
+    );
+    await session.uploadBandHistory(first, [day]);
+    expect(batches.single, hasLength(3));
+    expect(batches.single.first['kind'], 'heart_rate');
+    expect(dayPosts.single.single['date'], '2026-10-04');
+    expect(dayPosts.single.single['distance_m'], 3100);
+
+    // Next sync returns the same history plus one newer reading.
+    final second = [
+      ...first,
+      BodySample(BodyMetric.heartRate, t0.add(const Duration(minutes: 2)), 64),
+    ];
+    online = false;
+    await expectLater(
+      session.uploadBandHistory(second, const []),
+      throwsA(isA<ApiException>()),
+    );
+    online = true;
+    await session.uploadBandHistory(second, const []);
+    expect(batches, hasLength(2));
+    expect(batches.last, hasLength(1)); // only the new reading
+    expect(batches.last.single['value'], 64);
     session.dispose();
   });
 

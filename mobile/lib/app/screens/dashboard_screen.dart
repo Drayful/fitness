@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../api/session_controller.dart';
+import '../../band/band_history.dart';
 import '../../band/v8_band_service.dart';
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
@@ -418,18 +419,39 @@ class _MetricsGrid extends StatelessWidget {
       sleepValue = '${m ~/ 60}:${(m % 60).toString().padLeft(2, '0')}';
     }
 
+    // Without a live reading (watch away), fall back to the last value from
+    // the band's memory, then to the server's 24 h summary.
+    final session = SessionScope.of(context);
+    double? recorded(BodyMetric metric) {
+      final fromBand = band.latestHistory(metric);
+      if (fromBand != null) return fromBand.value;
+      final fromServer = session.sampleSummary[metric.apiName];
+      return (fromServer?['latest'] as num?)?.toDouble();
+    }
+
+    final hrRecorded = v?.heartRate == null
+        ? recorded(BodyMetric.heartRate)
+        : null;
+    final spo2Recorded = v?.spo2 == null ? recorded(BodyMetric.spo2) : null;
+    final tempRecorded = v?.temperatureC == null
+        ? recorded(BodyMetric.temperature)
+        : null;
+    final memoryCaption = l.t('from_band_memory');
+
     final tiles = <Widget>[
       _Tile(
         label: l.t('heart_rate'),
-        value: v?.heartRate?.toString(),
+        value: v?.heartRate?.toString() ?? hrRecorded?.round().toString(),
         unit: l.t('bpm'),
         color: AppTheme.accent,
+        caption: hrRecorded != null ? memoryCaption : null,
       ),
       _Tile(
         label: l.t('spo2'),
-        value: v?.spo2?.toString(),
+        value: v?.spo2?.toString() ?? spo2Recorded?.round().toString(),
         unit: '%',
         color: AppTheme.good,
+        caption: spo2Recorded != null ? memoryCaption : null,
       ),
       _Tile(
         label: l.t('sleep'),
@@ -443,9 +465,12 @@ class _MetricsGrid extends StatelessWidget {
       ),
       _Tile(
         label: l.t('temp_label'),
-        value: v?.temperatureC?.toStringAsFixed(1),
+        value:
+            v?.temperatureC?.toStringAsFixed(1) ??
+            tempRecorded?.toStringAsFixed(1),
         unit: '°C',
         color: AppTheme.accent,
+        caption: tempRecorded != null ? memoryCaption : null,
       ),
     ];
 
@@ -479,8 +504,11 @@ class _Tile extends StatelessWidget {
     this.unit,
     this.busy = false,
     this.onTap,
+    this.caption,
   });
 
+  /// Shown under the value, e.g. when it comes from the band memory.
+  final String? caption;
   final String label;
   final String? value;
   final String? unit;
@@ -556,6 +584,15 @@ class _Tile extends StatelessWidget {
                   ],
                 ),
               ),
+              if (caption != null) ...[
+                SizedBox(height: 2),
+                Text(
+                  caption!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: AppTheme.subtext),
+                ),
+              ],
             ],
           ),
         ),

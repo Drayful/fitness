@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BandHistoryController;
 use App\Http\Controllers\CheckinController;
 use App\Http\Controllers\MeasurementController;
 use App\Http\Controllers\ScoreController;
@@ -26,6 +27,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/measurements/vitals/recent', [MeasurementController::class, 'recentVitals']);
     Route::post('/measurements/sleep', [MeasurementController::class, 'storeSleep']);
     Route::get('/measurements/sleep/recent', [MeasurementController::class, 'recentSleep']);
+    Route::post('/measurements/samples', [BandHistoryController::class, 'storeSamples']);
+    Route::get('/measurements/samples/summary', [BandHistoryController::class, 'sampleSummary']);
+    Route::post('/activity/daily', [BandHistoryController::class, 'storeDailyActivity']);
+    Route::get('/activity/daily/recent', [BandHistoryController::class, 'recentDailyActivity']);
 
     Route::get('/scores/today', [ScoreController::class, 'today']);
 });

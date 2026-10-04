@@ -6,6 +6,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'band_history.dart';
 import 'band_variant.dart';
 import 'band_variant_store.dart';
 import 'sleep_model.dart';
@@ -736,6 +737,8 @@ class V8BandService extends ChangeNotifier {
       if (due(_lastSleepSyncAt, _sleepInterval) && !isSleepSyncing) {
         _lastSleepSyncAt = DateTime.now();
         await syncSleepData();
+        if (generation != _connectionGeneration) return;
+        await syncHistory();
       }
     } catch (_) {
       // Best effort; the next tick tries again.
@@ -798,6 +801,14 @@ class V8BandService extends ChangeNotifier {
       }
       try {
         await syncSleepData();
+      } catch (_) {}
+      if (!_ready || generation != _connectionGeneration) return;
+      try {
+        await _configureAutoMeasurement();
+      } catch (_) {}
+      if (!_ready || generation != _connectionGeneration) return;
+      try {
+        await syncHistory();
       } catch (_) {}
     });
   }
@@ -1033,6 +1044,104 @@ class V8BandService extends ChangeNotifier {
     }
   }
 
+  // ── Band memory: auto measurement + history download (TZ §4.1, §5) ──────
+
+  /// Readings from the band's own memory, from the latest history sync.
+  List<BodySample> historySamples = const [];
+
+  /// Per-day totals from the latest history sync, newest first.
+  List<DailyActivity> dailyActivity = const [];
+
+  /// Bumped after every successful history sync; listeners use it to upload.
+  int historySyncCount = 0;
+  bool isHistorySyncing = false;
+  DateTime? lastHistorySyncAt;
+
+  /// Most recent history value for [metric], if any.
+  BodySample? latestHistory(BodyMetric metric) {
+    BodySample? best;
+    for (final s in historySamples) {
+      if (s.metric == metric && (best == null || s.at.isAfter(best.at))) {
+        best = s;
+      }
+    }
+    return best;
+  }
+
+  /// Intervals for the band's own background measurements, in minutes.
+  /// Heart rate is the densest because RHR, zones and strain depend on it;
+  /// the rest are sparser to spare the battery.
+  static const _autoMeasurements = {
+    BandHistory.autoHeartRate: 5,
+    BandHistory.autoHrv: 30,
+    BandHistory.autoTemperature: 30,
+    BandHistory.autoSpo2: 60,
+  };
+
+  /// Turns on interval measurements so the band keeps recording into its
+  /// memory while the phone is away; without it there is little to download.
+  /// Each type is best effort: firmware without, say, temperature rejects
+  /// just that one.
+  Future<void> _configureAutoMeasurement() async {
+    if (!_ready || !variantConfirmed) return;
+    for (final entry in _autoMeasurements.entries) {
+      if (!_ready) return;
+      try {
+        await sendCommand(
+          BandHistory.cmdSetAutoMeasurement,
+          BandHistory.autoMeasurementPayload(
+            type: entry.key,
+            intervalMinutes: entry.value,
+          ),
+        );
+      } catch (_) {}
+    }
+  }
+
+  /// Downloads heart rate, HRV/stress, SpO2, temperature and daily totals
+  /// stored on the band. Reads only (modes 0 and 2); one command at a time,
+  /// and a command the firmware does not answer is skipped, not fatal.
+  Future<void> syncHistory() async {
+    if (!_ready || !variantConfirmed || isHistorySyncing || isWorkoutActive) {
+      return;
+    }
+    final generation = _connectionGeneration;
+    isHistorySyncing = true;
+    notifyListeners();
+    final samples = <BodySample>[];
+    var days = <DailyActivity>[];
+    var anyAnswered = false;
+    try {
+      for (final cmd in BandHistory.commands) {
+        if (!_ready || generation != _connectionGeneration) return;
+        try {
+          final packets = await sendStreamCommand(cmd, BandHistory.request());
+          anyAnswered = true;
+          if (cmd == BandHistory.cmdDailyTotals) {
+            days = BandHistory.parseDailyTotals(packets)
+              ..sort((a, b) => b.date.compareTo(a.date));
+          } else {
+            samples.addAll(BandHistory.parse(cmd, packets));
+          }
+        } catch (_) {
+          // Unsupported or timed out: keep going with the other kinds.
+        }
+      }
+      if (generation != _connectionGeneration || !anyAnswered) return;
+      samples.sort((a, b) => a.at.compareTo(b.at));
+      historySamples = List.unmodifiable(samples);
+      dailyActivity = List.unmodifiable(days);
+      lastHistorySyncAt = DateTime.now();
+      historySyncCount++;
+      _markSynced();
+    } finally {
+      if (generation == _connectionGeneration) {
+        isHistorySyncing = false;
+        notifyListeners();
+      }
+    }
+  }
+
   /// Fire-and-forget write for commands the band does not acknowledge.
   void _writeRaw(int command, List<int> payload) {
     final tx = _tx;
@@ -1111,17 +1220,21 @@ class V8BandService extends ChangeNotifier {
     // Multi-packet stream commands (sleep, etc.).
     final collector = _streamCollectors[cmd];
     if (collector != null) {
-      final isEnd = V8Protocol.isStreamEnd(bytes, variant);
+      final isHistory = BandHistory.isHistoryCommand(cmd);
+      final isEnd = isHistory
+          ? BandHistory.isEnd(cmd, bytes)
+          : V8Protocol.isStreamEnd(bytes, variant);
       final isError = (bytes[0] & 0x80) != 0;
       // A 2208A end packet still carries a full batch of records, so keep it.
       if (!isError) collector.packets.add(bytes);
       collector.pagePackets++;
       if (!isEnd &&
           !isError &&
-          cmd == V8Protocol.cmdSleep &&
-          collector.pagePackets == 50) {
+          (cmd == V8Protocol.cmdSleep || isHistory) &&
+          collector.pagePackets == BandHistory.pageNotifications) {
         collector.pagePackets = 0;
-        _writeRaw(cmd, [0x02]); // Continuation used by both vendor demos.
+        // Continuation used by both vendor demos; never the erasing 0x99.
+        _writeRaw(cmd, BandHistory.request(continuation: true));
       }
       if (isEnd || isError) {
         _streamCollectors.remove(cmd);
@@ -1402,6 +1515,7 @@ class V8BandService extends ChangeNotifier {
     sleepRecords = const [];
     sleepSyncError = null;
     isSleepSyncing = false;
+    isHistorySyncing = false;
     isWorkoutActive = false;
     isWorkoutPaused = false;
     workoutLive = null;
@@ -1460,6 +1574,7 @@ class V8BandService extends ChangeNotifier {
     sleepRecords = const [];
     sleepSyncError = null;
     isSleepSyncing = false;
+    isHistorySyncing = false;
     isWorkoutActive = false;
     isWorkoutPaused = false;
     workoutLive = null;

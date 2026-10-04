@@ -238,6 +238,32 @@ class ApiClient {
   Future<Map<String, dynamic>> recentVitals() =>
       _send('GET', '/api/measurements/vitals/recent');
 
+  /// Batched raw readings from the band's memory; idempotent per
+  /// metric + timestamp on the server.
+  Future<Map<String, dynamic>> storeSamples(
+    List<Map<String, dynamic>> samples, {
+    String? deviceModel,
+  }) => _send(
+    'POST',
+    '/api/measurements/samples',
+    body: {'device_model': ?deviceModel, 'samples': samples},
+  );
+
+  Future<Map<String, dynamic>> samplesSummary({int hours = 24}) =>
+      _send('GET', '/api/measurements/samples/summary?hours=$hours');
+
+  Future<Map<String, dynamic>> storeDailyActivity(
+    List<Map<String, dynamic>> days, {
+    String? deviceModel,
+  }) => _send(
+    'POST',
+    '/api/activity/daily',
+    body: {'device_model': ?deviceModel, 'days': days},
+  );
+
+  Future<Map<String, dynamic>> recentDailyActivity() =>
+      _send('GET', '/api/activity/daily/recent');
+
   Future<Map<String, dynamic>> storeSleepObservation({
     required String clientId,
     required DateTime startedAt,

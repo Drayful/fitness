@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../band/sleep_model.dart';
+import '../band/band_history.dart';
 import '../band/band_variant.dart';
 import '../band/v8_protocol.dart';
 import '../band/workout_model.dart';
@@ -110,6 +111,8 @@ class SessionController extends ChangeNotifier {
     savedWorkouts = const [];
     savedSleepObservations = const [];
     recentVitals = const [];
+    sampleSummary = const {};
+    savedDailyActivity = const [];
     pendingUploadCount = 0;
     try {
       await _storage.delete(key: _tokenKey);
@@ -344,7 +347,123 @@ class SessionController extends ChangeNotifier {
       refreshVitals(),
       refreshWorkouts(),
       refreshSleep(),
+      refreshSampleSummary(),
+      refreshDailyActivity(),
     ]);
+  }
+
+  // ── Band memory history (raw samples + daily totals) ─────────────────────
+
+  /// Server summary of the last 24 h per metric: `{kind: {latest, latest_at,
+  /// average, min, max, count}}`, built from synced band history.
+  Map<String, Map<String, dynamic>> sampleSummary = const {};
+
+  /// Daily totals saved on the server, newest first.
+  List<Map<String, dynamic>> savedDailyActivity = const [];
+
+  static const _historyCursorPrefix = 'band_history_cursor_v1_';
+  static const _samplesPerRequest = 1000;
+
+  /// Uploads what a band history sync produced. Only samples newer than the
+  /// per-metric cursor are sent; the cursor advances only after the server
+  /// accepted them, so a failed upload is retried on the next sync — the
+  /// band still holds the data, and the server ignores duplicates anyway.
+  Future<void> uploadBandHistory(
+    List<BodySample> samples,
+    List<DailyActivity> days, {
+    BandVariant? model,
+  }) async {
+    final email = userEmail;
+    if (!isAuthenticated || email == null || _disposed) return;
+    final generation = _sessionGeneration;
+    final prefs = await SharedPreferences.getInstance();
+    final cursorKey = '$_historyCursorPrefix${Uri.encodeComponent(email)}';
+    final cursor = <String, DateTime>{};
+    final stored = prefs.getString(cursorKey);
+    if (stored != null) {
+      try {
+        (jsonDecode(stored) as Map).forEach((k, v) {
+          final at = DateTime.tryParse('$v');
+          if (at != null) cursor['$k'] = at;
+        });
+      } catch (_) {}
+    }
+
+    final fresh = samples.where((s) {
+      final last = cursor[s.metric.apiName];
+      return last == null || s.at.isAfter(last);
+    }).toList();
+
+    for (var i = 0; i < fresh.length; i += _samplesPerRequest) {
+      if (generation != _sessionGeneration || _disposed) return;
+      final chunk = fresh.sublist(
+        i,
+        i + _samplesPerRequest > fresh.length
+            ? fresh.length
+            : i + _samplesPerRequest,
+      );
+      await api.storeSamples([
+        for (final s in chunk)
+          {
+            'kind': s.metric.apiName,
+            'measured_at': s.at.toUtc().toIso8601String(),
+            'value': s.value,
+          },
+      ], deviceModel: model?.name);
+      for (final s in chunk) {
+        final last = cursor[s.metric.apiName];
+        if (last == null || s.at.isAfter(last)) cursor[s.metric.apiName] = s.at;
+      }
+      await prefs.setString(
+        cursorKey,
+        jsonEncode(cursor.map((k, v) => MapEntry(k, v.toIso8601String()))),
+      );
+    }
+
+    if (days.isNotEmpty && generation == _sessionGeneration && !_disposed) {
+      await api.storeDailyActivity([
+        for (final d in days.take(60))
+          {
+            'date':
+                '${d.date.year.toString().padLeft(4, '0')}-'
+                '${d.date.month.toString().padLeft(2, '0')}-'
+                '${d.date.day.toString().padLeft(2, '0')}',
+            'steps': d.steps,
+            'distance_m': (d.distanceKm * 1000).round(),
+            'calories': d.calories,
+            'active_minutes': d.activeMinutes.clamp(0, 1440),
+          },
+      ], deviceModel: model?.name);
+    }
+    await Future.wait([refreshSampleSummary(), refreshDailyActivity()]);
+  }
+
+  Future<void> refreshSampleSummary() async {
+    if (!isAuthenticated) return;
+    final generation = _sessionGeneration;
+    final response = await api.samplesSummary();
+    if (generation != _sessionGeneration || _disposed) return;
+    final raw = response['summary'];
+    sampleSummary = raw is Map
+        ? {
+            for (final e in raw.entries)
+              if (e.value is Map)
+                '${e.key}': Map<String, dynamic>.from(e.value as Map),
+          }
+        : const {};
+    notifyListeners();
+  }
+
+  Future<void> refreshDailyActivity() async {
+    if (!isAuthenticated) return;
+    final generation = _sessionGeneration;
+    final response = await api.recentDailyActivity();
+    if (generation != _sessionGeneration || _disposed) return;
+    savedDailyActivity = (response['days'] as List? ?? const [])
+        .whereType<Map>()
+        .map((row) => Map<String, dynamic>.from(row))
+        .toList();
+    notifyListeners();
   }
 
   /// Retry both account-scoped queues and then reload saved server history.

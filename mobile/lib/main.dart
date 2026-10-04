@@ -41,6 +41,8 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     _bandService.addListener(_saveVitals);
     _bandService.addListener(_saveSleep);
     _session.addListener(_saveSleep);
+    _bandService.addListener(_saveHistory);
+    _session.addListener(_saveHistory);
     unawaited(_localeController.load());
     unawaited(_themeController.load());
     _session.load();
@@ -88,6 +90,29 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     );
   }
 
+  /// Upload band memory after each history sync (TZ §5). A failed upload
+  /// is retried with the next sync; the server ignores duplicates.
+  int _uploadedHistorySync = 0;
+
+  void _saveHistory() {
+    final count = _bandService.historySyncCount;
+    if (count == 0 ||
+        count == _uploadedHistorySync ||
+        !_session.isAuthenticated) {
+      return;
+    }
+    _uploadedHistorySync = count;
+    unawaited(
+      _session
+          .uploadBandHistory(
+            _bandService.historySamples,
+            _bandService.dailyActivity,
+            model: _bandService.variantConfirmed ? _bandService.variant : null,
+          )
+          .catchError((_) {}),
+    );
+  }
+
   void _saveSleep() {
     final summary = _bandService.sleepSummary;
     if (!_session.isAuthenticated ||
@@ -114,6 +139,8 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     _bandService.removeListener(_saveVitals);
     _bandService.removeListener(_saveSleep);
     _session.removeListener(_saveSleep);
+    _bandService.removeListener(_saveHistory);
+    _session.removeListener(_saveHistory);
     _bandService.dispose();
     _localeController.dispose();
     _themeController.dispose();
