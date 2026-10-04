@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../band/sleep_model.dart';
 import '../band/band_history.dart';
+import '../band/body_profile.dart';
 import '../band/band_variant.dart';
 import '../band/v8_protocol.dart';
 import '../band/workout_model.dart';
@@ -113,6 +114,7 @@ class SessionController extends ChangeNotifier {
     recentVitals = const [];
     sampleSummary = const {};
     savedDailyActivity = const [];
+    bodyProfile = const BodyProfile();
     pendingUploadCount = 0;
     try {
       await _storage.delete(key: _tokenKey);
@@ -135,6 +137,7 @@ class SessionController extends ChangeNotifier {
     if (user is Map) {
       userName = user['name'] as String?;
       userEmail = user['email'] as String?;
+      bodyProfile = BodyProfile.fromUser(user);
     }
     await _storage.write(key: _userNameKey, value: userName);
     await _storage.write(key: _userEmailKey, value: userEmail);
@@ -349,7 +352,36 @@ class SessionController extends ChangeNotifier {
       refreshSleep(),
       refreshSampleSummary(),
       refreshDailyActivity(),
+      refreshProfile(),
     ]);
+  }
+
+  // ── Body profile (sex, birth date, height, weight) ───────────────────────
+
+  /// From the server; sent to the band and used for heart-rate zones.
+  BodyProfile bodyProfile = const BodyProfile();
+
+  Future<void> refreshProfile() async {
+    if (!isAuthenticated) return;
+    final generation = _sessionGeneration;
+    final response = await api.me();
+    if (generation != _sessionGeneration || _disposed) return;
+    final user = response['user'];
+    if (user is Map) {
+      final profile = BodyProfile.fromUser(user);
+      if (profile != bodyProfile) {
+        bodyProfile = profile;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> updateBodyProfile(BodyProfile profile) async {
+    if (!isAuthenticated) throw StateError('Sign in first');
+    final response = await api.updateProfile(profile.toApi());
+    final user = response['user'];
+    bodyProfile = user is Map ? BodyProfile.fromUser(user) : profile;
+    notifyListeners();
   }
 
   // ── Band memory history (raw samples + daily totals) ─────────────────────

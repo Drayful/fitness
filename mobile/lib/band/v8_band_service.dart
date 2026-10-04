@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'band_history.dart';
 import 'band_variant.dart';
+import 'body_profile.dart';
 import 'band_variant_store.dart';
 import 'sleep_model.dart';
 import 'v8_protocol.dart';
@@ -807,6 +808,9 @@ class V8BandService extends ChangeNotifier {
         await _configureAutoMeasurement();
       } catch (_) {}
       if (!_ready || generation != _connectionGeneration) return;
+      _bodyProfileSent = null; // a fresh link: make sure the band has it
+      await _sendBodyProfile();
+      if (!_ready || generation != _connectionGeneration) return;
       try {
         await syncHistory();
       } catch (_) {}
@@ -1066,6 +1070,28 @@ class V8BandService extends ChangeNotifier {
       }
     }
     return best;
+  }
+
+  // ── Body profile → band (0x02) ──
+  BodyProfile _bodyProfile = const BodyProfile();
+  BodyProfile? _bodyProfileSent;
+
+  /// Sends sex/age/height/weight/stride so the band's calorie and distance
+  /// estimates stop using factory defaults. Re-sent after each connect.
+  Future<void> setBodyProfile(BodyProfile profile) async {
+    _bodyProfile = profile;
+    if (profile != _bodyProfileSent) await _sendBodyProfile();
+  }
+
+  Future<void> _sendBodyProfile() async {
+    final payload = _bodyProfile.bandPayload();
+    if (payload == null || !_ready || !variantConfirmed) return;
+    try {
+      await sendCommand(BodyProfile.cmdSetPersonalInfo, payload);
+      _bodyProfileSent = _bodyProfile;
+    } catch (_) {
+      // Retried on the next connect.
+    }
   }
 
   /// Intervals for the band's own background measurements, in minutes.

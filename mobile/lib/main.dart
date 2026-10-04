@@ -43,6 +43,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     _session.addListener(_saveSleep);
     _bandService.addListener(_saveHistory);
     _session.addListener(_saveHistory);
+    _session.addListener(_pushBodyProfile);
     unawaited(_localeController.load());
     unawaited(_themeController.load());
     _session.load();
@@ -94,6 +95,10 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
   /// is retried with the next sync; the server ignores duplicates.
   int _uploadedHistorySync = 0;
 
+  void _pushBodyProfile() {
+    unawaited(_bandService.setBodyProfile(_session.bodyProfile));
+  }
+
   void _saveHistory() {
     final count = _bandService.historySyncCount;
     if (count == 0 ||
@@ -141,6 +146,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     _session.removeListener(_saveSleep);
     _bandService.removeListener(_saveHistory);
     _session.removeListener(_saveHistory);
+    _session.removeListener(_pushBodyProfile);
     _bandService.dispose();
     _localeController.dispose();
     _themeController.dispose();

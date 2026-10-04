@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../api/session_controller.dart';
+import '../../band/body_profile.dart';
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/locale_controller.dart';
@@ -415,6 +416,27 @@ class ProfileScreen extends StatelessWidget {
                   _divider(),
                   _settingRow(
                     c,
+                    Icons.accessibility_new,
+                    c.accent2,
+                    l.t('body_profile'),
+                    session.bodyProfile.isComplete
+                        ? l.t('body_profile_sub_done')
+                        : l.t('body_profile_sub'),
+                    onTap: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: AppTheme.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(24),
+                        ),
+                      ),
+                      builder: (_) => _BodyProfileSheet(session: session),
+                    ),
+                  ),
+                  _divider(),
+                  _settingRow(
+                    c,
                     Icons.lock_outline,
                     c.warn,
                     l.t('privacy'),
@@ -602,6 +624,171 @@ class ProfileScreen extends StatelessWidget {
               Icon(Icons.chevron_right, color: c.subtext, size: 18),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Body data for the band's calorie/distance estimates and heart-rate zones.
+class _BodyProfileSheet extends StatefulWidget {
+  const _BodyProfileSheet({required this.session});
+
+  final SessionController session;
+
+  @override
+  State<_BodyProfileSheet> createState() => _BodyProfileSheetState();
+}
+
+class _BodyProfileSheetState extends State<_BodyProfileSheet> {
+  late String? _sex = widget.session.bodyProfile.sex;
+  late DateTime? _birthDate = widget.session.bodyProfile.birthDate;
+  late final _height = TextEditingController(
+    text: widget.session.bodyProfile.heightCm?.toString() ?? '',
+  );
+  late final _weight = TextEditingController(
+    text: widget.session.bodyProfile.weightKg?.toString() ?? '',
+  );
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _height.dispose();
+    _weight.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickBirthDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _birthDate ?? DateTime(now.year - 14, 1, 1),
+      firstDate: DateTime(1920),
+      lastDate: now.subtract(Duration(days: 1)),
+    );
+    if (picked != null) setState(() => _birthDate = picked);
+  }
+
+  Future<void> _save() async {
+    final l = AppLocalizations.of(context);
+    final height = int.tryParse(_height.text.trim());
+    final weight = double.tryParse(_weight.text.trim().replaceAll(',', '.'));
+    if ((_height.text.trim().isNotEmpty &&
+            (height == null || height < 80 || height > 250)) ||
+        (_weight.text.trim().isNotEmpty &&
+            (weight == null || weight < 20 || weight > 250))) {
+      setState(() => _error = l.t('body_profile_invalid'));
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.session.updateBodyProfile(
+        BodyProfile(
+          sex: _sex,
+          birthDate: _birthDate,
+          heightCm: height,
+          weightKg: weight,
+        ),
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _error = l.t('body_profile_failed');
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final loc = MaterialLocalizations.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        18,
+        20,
+        20 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(l.t('body_profile'), style: AppTheme.numeric(fontSize: 18)),
+          SizedBox(height: 4),
+          Text(
+            l.t('body_profile_why'),
+            style: TextStyle(fontSize: 13, color: AppTheme.subtext),
+          ),
+          SizedBox(height: 16),
+          SegmentedButton<String>(
+            segments: [
+              ButtonSegment(value: 'female', label: Text(l.t('sex_female'))),
+              ButtonSegment(value: 'male', label: Text(l.t('sex_male'))),
+            ],
+            selected: {?_sex},
+            emptySelectionAllowed: true,
+            onSelectionChanged: (s) =>
+                setState(() => _sex = s.isEmpty ? null : s.first),
+          ),
+          SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _pickBirthDate,
+            icon: Icon(Icons.cake_outlined),
+            label: Text(
+              _birthDate == null
+                  ? l.t('birth_date')
+                  : '${l.t('birth_date')}: ${loc.formatMediumDate(_birthDate!)}',
+            ),
+          ),
+          SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _height,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: l.t('height_cm'),
+                  ),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _weight,
+                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: l.t('weight_kg'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_error != null) ...[
+            SizedBox(height: 10),
+            Text(_error!, style: TextStyle(color: AppTheme.danger)),
+          ],
+          SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(l.t('save')),
+            ),
+          ),
+        ],
       ),
     );
   }

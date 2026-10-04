@@ -43,4 +43,34 @@ class AuthTest extends TestCase
         ])->assertOk();
         $this->assertNotEmpty($login->json('token'));
     }
+
+    public function test_body_profile_can_be_updated_and_validated(): void
+    {
+        $token = $this->postJson('/api/auth/register', [
+            'name' => 'Athlete',
+            'email' => 'athlete@example.com',
+            'password' => 'password123',
+        ])->json('token');
+
+        $this->withToken($token)->patchJson('/api/auth/me', [
+            'sex' => 'female',
+            'birth_date' => '2012-05-20',
+            'height_cm' => 152,
+            'weight_kg' => 41.5,
+        ])->assertOk()
+            ->assertJsonPath('user.sex', 'female')
+            ->assertJsonPath('user.birth_date', '2012-05-20')
+            ->assertJsonPath('user.height_cm', 152)
+            ->assertJsonPath('user.weight_kg', 41.5);
+
+        $this->withToken($token)->getJson('/api/auth/me')->assertJsonPath('user.height_cm', 152);
+
+        $this->withToken($token)->patchJson('/api/auth/me', ['height_cm' => 400])->assertUnprocessable();
+        $this->withToken($token)->patchJson('/api/auth/me', ['sex' => 'other'])->assertUnprocessable();
+        $this->withToken($token)->patchJson('/api/auth/me', ['birth_date' => now()->addDay()->toDateString()])
+            ->assertUnprocessable();
+        // Email cannot be changed through this endpoint.
+        $this->withToken($token)->patchJson('/api/auth/me', ['email' => 'x@example.com'])->assertOk();
+        $this->assertDatabaseHas('users', ['email' => 'athlete@example.com']);
+    }
 }

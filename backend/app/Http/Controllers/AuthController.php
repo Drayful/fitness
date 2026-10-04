@@ -78,4 +78,21 @@ class AuthController extends Controller
     {
         return response()->json(['user' => $request->user()]);
     }
+
+    /** Update the body profile (sex, birth date, height, weight). */
+    public function updateProfile(Request $request)
+    {
+        $data = $request->validate([
+            'name' => ['sometimes', 'string', 'max:255'],
+            'sex' => ['sometimes', 'nullable', 'in:male,female'],
+            'birth_date' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'before:today', 'after:1900-01-01'],
+            'height_cm' => ['sometimes', 'nullable', 'integer', 'between:80,250'],
+            'weight_kg' => ['sometimes', 'nullable', 'numeric', 'between:20,250'],
+        ]);
+
+        $user = $request->user();
+        $user->fill($data)->save();
+
+        return response()->json(['user' => $user->fresh()]);
+    }
 }
