@@ -29,6 +29,53 @@ void main() {
     );
     expect(n.sublist(0, 7), [0x28, 2, 1, 0, 0, 0, 0]);
   });
+  group('V8 sleep stages follow the SDK rule (sleep.txt)', () {
+    test('one-minute records carry stage codes', () {
+      final p = sleepPacket(size: 130, length: 5)
+        ..setRange(10, 15, [1, 2, 3, 58, 0]);
+      final r = V8Protocol.parseSleepPackets([
+        p,
+      ], BandVariant.legacyV8).single;
+      expect(r.unitMinutes, 1);
+      expect(r.stages, [
+        SleepStage.deep,
+        SleepStage.light,
+        SleepStage.rem,
+        SleepStage.awake,
+        SleepStage.awake,
+      ]);
+    });
+    test('five-minute values are divided by 5 and bucketed', () {
+      final p = sleepPacket(length: 7)
+        ..setRange(10, 17, [0, 10, 11, 40, 41, 100, 101]);
+      final r = V8Protocol.parseSleepPackets([
+        p,
+      ], BandVariant.legacyV8).single;
+      expect(r.unitMinutes, 5);
+      expect(r.stages, [
+        SleepStage.deep, // 0
+        SleepStage.deep, // 10 / 5 = 2
+        SleepStage.light, // 2.2
+        SleepStage.light, // 8
+        SleepStage.rem, // 8.2
+        SleepStage.rem, // 20
+        SleepStage.awake, // 20.2
+      ]);
+      final s = SleepSummary.fromRecords([r]);
+      expect(s.hasValidatedStages, isTrue);
+      expect(s.deepMinutes, 10);
+      expect(s.lightMinutes, 10);
+      expect(s.remMinutes, 10);
+      expect(s.awakeMinutes, 5);
+    });
+    test('2208A stays unverified: its SDK publishes no rule', () {
+      final p = sleepPacket(size: 130, length: 3)..setRange(10, 13, [1, 2, 3]);
+      final r = V8Protocol.parseSleepPackets([
+        p,
+      ], BandVariant.jc2208a).single;
+      expect(r.stages.toSet(), {SleepStage.unknown});
+    });
+  });
   for (final variant in BandVariant.values) {
     group(variant.name, () {
       test('BCD date and timezone in both SDKs', () {
@@ -64,8 +111,18 @@ void main() {
         expect(records.single.start, DateTime(2026, 9, 18, 1, 30));
         expect(records.single.durationMinutes, 120);
         expect(records.single.rawValues.first, 200);
-        expect(records.single.stages.toSet(), {SleepStage.unknown});
-        expect(SleepSummary.fromRecords(records).hasValidatedStages, isFalse);
+        if (variant == BandVariant.legacyV8) {
+          // V8 SDK rule: 200 / 5 = 40 → awake; zero padding → deep.
+          expect(records.single.stages.first, SleepStage.awake);
+          expect(records.single.stages.skip(1).toSet(), {SleepStage.deep});
+          expect(SleepSummary.fromRecords(records).hasValidatedStages, isTrue);
+        } else {
+          expect(records.single.stages.toSet(), {SleepStage.unknown});
+          expect(
+            SleepSummary.fromRecords(records).hasValidatedStages,
+            isFalse,
+          );
+        }
       });
       test('final notification retains all records and needs exact suffix', () {
         final p = Uint8List.fromList([

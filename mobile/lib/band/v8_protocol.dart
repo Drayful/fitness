@@ -176,7 +176,7 @@ class V8Protocol {
   ) {
     final records = <SleepRecord>[];
     for (final packet in packets) {
-      records.addAll(_parse2208SleepPacket(packet));
+      records.addAll(_parse2208SleepPacket(packet, variant));
     }
     return records;
   }
@@ -186,7 +186,10 @@ class V8Protocol {
   /// A notification holds either one 130-byte record of 1-minute slots, or a
   /// run of 34-byte records of 5-minute slots. The header is the same in both
   /// forms: 0x53 ID1 ID2 YY MM DD HH mm SS LEN, with dates in BCD.
-  static List<SleepRecord> _parse2208SleepPacket(Uint8List data) {
+  static List<SleepRecord> _parse2208SleepPacket(
+    Uint8List data,
+    BandVariant variant,
+  ) {
     if (data.length < 11) return const [];
     if (data[0] != cmdSleep) return const [];
 
@@ -194,7 +197,7 @@ class V8Protocol {
       data = Uint8List.sublistView(data, 0, data.length - 2);
     }
     if (data.length == _sleep2208LongPacketBytes) {
-      final record = _parse2208SleepRecord(data, 0, data.length, 1);
+      final record = _parse2208SleepRecord(data, 0, data.length, 1, variant);
       return record == null ? const [] : [record];
     }
 
@@ -209,6 +212,7 @@ class V8Protocol {
         i * _sleep2208RecordBytes,
         _sleep2208RecordBytes,
         5,
+        variant,
       );
       if (record != null) records.add(record);
     }
@@ -220,6 +224,7 @@ class V8Protocol {
     int offset,
     int recordBytes,
     int unitMinutes,
+    BandVariant variant,
   ) {
     if (offset + 11 > data.length) return null;
     if (data[offset] != cmdSleep) return null;
@@ -248,16 +253,41 @@ class V8Protocol {
     final slots = len;
     if (slots <= 0) return null;
 
-    final stages = List<SleepStage>.filled(slots, SleepStage.unknown);
+    final raw = data.sublist(offset + 10, offset + 10 + slots);
+    // Only the V8 SDK documents how to read these values; the 2208A SDK does
+    // not, so its stages stay unknown rather than guessed.
+    final stages = variant == BandVariant.legacyV8
+        ? [for (final v in raw) v8SleepStage(v, unitMinutes)]
+        : List<SleepStage>.filled(slots, SleepStage.unknown);
 
     return SleepRecord(
       start: DateTime(2000 + yy, mo, dd, hh, mn, ss),
       stages: stages,
-      rawValues: List<int>.unmodifiable(
-        data.sublist(offset + 10, offset + 10 + slots),
-      ),
+      rawValues: List<int>.unmodifiable(raw),
       unitMinutes: unitMinutes,
     );
+  }
+
+  /// Sleep stage rule published in the V8 SDK (`sleep.txt`, vendor functions
+  /// `getSleepLevelerOneMinute` and `getSleepLeveler`).
+  ///
+  /// One-minute records carry stage codes: 1 deep, 2 light, 3 REM, anything
+  /// else awake. Five-minute records carry a quality value that is divided
+  /// by 5 and bucketed: ≤2 deep, ≤8 light, ≤20 REM, above that awake.
+  static SleepStage v8SleepStage(int value, int unitMinutes) {
+    if (unitMinutes == 1) {
+      return switch (value) {
+        1 => SleepStage.deep,
+        2 => SleepStage.light,
+        3 => SleepStage.rem,
+        _ => SleepStage.awake,
+      };
+    }
+    final level = value / 5;
+    if (level <= 2) return SleepStage.deep;
+    if (level <= 8) return SleepStage.light;
+    if (level <= 20) return SleepStage.rem;
+    return SleepStage.awake;
   }
 
   /// Parses a 0x18 real-time exercise packet.
