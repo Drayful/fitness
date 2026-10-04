@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import '../../api/session_controller.dart';
 import '../../band/sleep_model.dart';
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
 import '../theme.dart';
-import '../widgets/ring_gauge.dart';
 
+/// Sleep screen after the YUMN design (App-04-Sleep).
+///
+/// Shows last night from the watch, or — when the watch is out of reach —
+/// the last night saved on the server. Duration and timing are always shown;
+/// the phase strip only when the stages are verified for this watch model.
+/// The personal norm and the coach advice are derived from saved nights.
 class SleepScreen extends StatefulWidget {
   const SleepScreen({super.key, this.embedded = false});
 
@@ -17,6 +21,17 @@ class SleepScreen extends StatefulWidget {
   @override
   State<SleepScreen> createState() => _SleepScreenState();
 }
+
+/// Sleep need used for debt and bedtime advice until it is personalised.
+const _needMinutes = 8 * 60;
+
+/// Saved nights needed before showing a norm or advice.
+const _minNightsForAdvice = 3;
+
+const _deepColor = Color(0xFF5D6CE6);
+const _remColor = Color(0xFF8E9AF2);
+const _lightColor = Color(0xFFC3C9F7);
+const _awakeColor = AppTheme.outline;
 
 class _SleepScreenState extends State<SleepScreen> {
   @override
@@ -41,422 +56,385 @@ class _SleepScreenState extends State<SleepScreen> {
       listenable: band,
       builder: (context, _) {
         final l = AppLocalizations.of(context);
-        final c = context.appColors;
+        final saved = _SavedNight.parseAll(session.savedSleepObservations);
         final summary = band.sleepSummary;
-        final syncing = band.isSleepSyncing;
+        final night = summary != null && summary.hasData
+            ? _Night.fromSummary(summary)
+            : saved.isNotEmpty
+            ? _Night.fromSaved(saved.first)
+            : null;
 
         return Scaffold(
-          backgroundColor: const Color(0xFF0D1014),
+          backgroundColor: AppTheme.bg,
           appBar: AppBar(
-            backgroundColor: const Color(0xFF0D1014),
-            surfaceTintColor: Colors.transparent,
-            elevation: 0,
             automaticallyImplyLeading: false,
             leading: widget.embedded
                 ? null
                 : IconButton(
-                    icon: Icon(Icons.chevron_left, color: c.subtext, size: 28),
+                    icon: const Icon(
+                      Icons.chevron_left,
+                      color: AppTheme.subtext,
+                      size: 28,
+                    ),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
-            title: Text(
-              l.t('sleep_analysis'),
-              style: GoogleFonts.manrope(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFFF3F5F8),
-              ),
-            ),
+            title: Text(l.t('sleep_title')),
             actions: [
               if (band.isConnected)
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: syncing
-                      ? Center(
+                  child: band.isSleepSyncing
+                      ? const Center(
                           child: SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: c.accent,
-                            ),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           ),
                         )
                       : IconButton(
-                          icon: Icon(Icons.sync, color: c.subtext, size: 22),
+                          icon: const Icon(
+                            Icons.sync,
+                            color: AppTheme.subtext,
+                            size: 22,
+                          ),
                           onPressed: () => band.syncSleepData(),
                         ),
                 ),
             ],
           ),
-          body: band.sleepSyncError != null
-              ? Center(child: Text(l.t('sleep_sync_error')))
-              : summary != null &&
-                    summary.hasData &&
-                    !summary.hasValidatedStages
-              ? ListView(
-                  padding: const EdgeInsets.all(24),
-                  children: [
-                    Text(l.t('sleep_unverified')),
-                    _SavedSleepHistory(
-                      observations: session.savedSleepObservations,
-                      l: l,
-                      c: c,
-                    ),
-                  ],
-                )
-              : (summary == null || !summary.hasData)
-              ? session.savedSleepObservations.isNotEmpty
-                    ? ListView(
-                        padding: const EdgeInsets.all(24),
-                        children: [
-                          _SavedSleepHistory(
-                            observations: session.savedSleepObservations,
-                            l: l,
-                            c: c,
-                          ),
-                        ],
-                      )
-                    : _EmptyState(
-                        syncing: syncing,
-                        connected: band.isConnected,
-                        l: l,
-                        c: c,
-                      )
-              : _SleepContent(summary: summary, l: l, c: c),
+          body: RefreshIndicator(
+            color: AppTheme.accent,
+            backgroundColor: AppTheme.surface,
+            onRefresh: () => Future.wait([
+              if (band.isConnected) band.syncSleepData(),
+              session.refreshSleep().catchError((_) {}),
+            ]),
+            child: night == null
+                ? _EmptyState(
+                    syncing: band.isSleepSyncing,
+                    connected: band.isConnected,
+                    error: band.sleepSyncError != null,
+                    onRetry: band.isConnected ? band.syncSleepData : null,
+                    l: l,
+                  )
+                : ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                    children: [
+                      _NightHeader(night: night, saved: saved, l: l),
+                      const SizedBox(height: 18),
+                      if (night.summary != null &&
+                          night.summary!.hasValidatedStages) ...[
+                        _PhaseStrip(summary: night.summary!, l: l),
+                        const SizedBox(height: 14),
+                        _StageTiles(summary: night.summary!, l: l),
+                      ] else
+                        _InfoNote(text: l.t('sleep_stages_note')),
+                      const SizedBox(height: 14),
+                      _CoachCard(saved: saved, l: l),
+                      ...() {
+                        // Earlier nights only: drop the one shown above.
+                        final history = saved
+                            .where(
+                              (n) =>
+                                  n.end.difference(night.end).inMinutes.abs() >
+                                  60,
+                            )
+                            .take(7)
+                            .toList();
+                        return history.isEmpty
+                            ? const <Widget>[]
+                            : [
+                                const SizedBox(height: 22),
+                                _History(nights: history, l: l),
+                              ];
+                      }(),
+                    ],
+                  ),
+          ),
         );
       },
     );
   }
 }
 
-class _SavedSleepHistory extends StatelessWidget {
-  const _SavedSleepHistory({
-    required this.observations,
-    required this.l,
-    required this.c,
+// ─────────────────────────── Data ───────────────────────────────────────────
+
+class _SavedNight {
+  const _SavedNight({
+    required this.start,
+    required this.end,
+    required this.minutes,
+    required this.validated,
   });
 
-  final List<Map<String, dynamic>> observations;
+  final DateTime start;
+  final DateTime end;
+  final int minutes;
+  final bool validated;
+
+  /// Server observations, newest first; malformed rows are skipped.
+  static List<_SavedNight> parseAll(List<Map<String, dynamic>> rows) {
+    final nights = <_SavedNight>[];
+    for (final row in rows) {
+      final start = DateTime.tryParse('${row['started_at']}');
+      final end = DateTime.tryParse('${row['ended_at']}');
+      final minutes = (row['observed_minutes'] as num?)?.toInt();
+      if (start == null || end == null || minutes == null || minutes <= 0) {
+        continue;
+      }
+      nights.add(
+        _SavedNight(
+          start: start.toLocal(),
+          end: end.toLocal(),
+          minutes: minutes,
+          validated: row['stages_validated'] == true,
+        ),
+      );
+    }
+    nights.sort((a, b) => b.end.compareTo(a.end));
+    return nights;
+  }
+}
+
+class _Night {
+  const _Night({
+    required this.start,
+    required this.end,
+    required this.asleepMinutes,
+    required this.fromServer,
+    this.summary,
+  });
+
+  factory _Night.fromSummary(SleepSummary s) => _Night(
+    start: s.bedTime!,
+    end: s.wakeTime!,
+    asleepMinutes: s.hasValidatedStages ? s.sleepMinutes : s.observedMinutes,
+    fromServer: false,
+    summary: s,
+  );
+
+  factory _Night.fromSaved(_SavedNight n) => _Night(
+    start: n.start,
+    end: n.end,
+    asleepMinutes: n.minutes,
+    fromServer: true,
+  );
+
+  final DateTime start;
+  final DateTime end;
+  final int asleepMinutes;
+  final bool fromServer;
+  final SleepSummary? summary;
+
+  int get inBedMinutes => end.difference(start).inMinutes;
+}
+
+String _fmtDur(AppLocalizations l, int minutes) => l
+    .t('dur_hm')
+    .replaceAll('{h}', '${minutes ~/ 60}')
+    .replaceAll('{m}', '${minutes % 60}');
+
+String _fmtHm(int minutes) =>
+    '${minutes ~/ 60}:${(minutes % 60).toString().padLeft(2, '0')}';
+
+String _fmtClock(BuildContext context, DateTime t) => MaterialLocalizations.of(
+  context,
+).formatTimeOfDay(TimeOfDay.fromDateTime(t), alwaysUse24HourFormat: true);
+
+String _fmtClockMinutes(BuildContext context, int minuteOfDay) {
+  final m = ((minuteOfDay % 1440) + 1440) % 1440;
+  return MaterialLocalizations.of(context).formatTimeOfDay(
+    TimeOfDay(hour: m ~/ 60, minute: m % 60),
+    alwaysUse24HourFormat: true,
+  );
+}
+
+const _overline = TextStyle(
+  fontSize: 11,
+  fontWeight: FontWeight.w600,
+  letterSpacing: 0.9,
+  color: AppTheme.subtext,
+);
+
+// ─────────────────────────── Header ─────────────────────────────────────────
+
+class _NightHeader extends StatelessWidget {
+  const _NightHeader({
+    required this.night,
+    required this.saved,
+    required this.l,
+  });
+
+  final _Night night;
+  final List<_SavedNight> saved;
   final AppLocalizations l;
-  final AppColors c;
+
+  /// Personal norm: average of earlier saved nights, excluding this one.
+  int? get _norm {
+    final earlier = saved
+        .where((n) => n.end.difference(night.end).inMinutes.abs() > 60)
+        .take(14)
+        .toList();
+    if (earlier.length < _minNightsForAdvice) return null;
+    return earlier.fold<int>(0, (s, n) => s + n.minutes) ~/ earlier.length;
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (observations.isEmpty) return const SizedBox.shrink();
+    final summary = night.summary;
+    final validated = summary != null && summary.hasValidatedStages;
+    final norm = _norm;
+    final delta = norm == null ? null : night.asleepMinutes - norm;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 20),
-        Text(l.t('saved_sleep'), style: TextStyle(color: c.subtext)),
-        const SizedBox(height: 8),
-        for (final row in observations.take(10))
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Text(
-              '${DateTime.parse(row['ended_at'] as String).toLocal().toString().substring(0, 16)}'
-              ' · ${row['observed_minutes']} ${l.t('minutes_observed')}'
-              '${row['stages_validated'] == true ? '' : ' · ${l.t('stages_unverified')}'}',
-              style: const TextStyle(color: Color(0xFFC6CCD6)),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────── Empty State ────────────────────────────────────
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.syncing,
-    required this.connected,
-    required this.l,
-    required this.c,
-  });
-
-  final bool syncing;
-  final bool connected;
-  final AppLocalizations l;
-  final AppColors c;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        Row(
           children: [
-            Icon(Icons.bedtime_outlined, size: 64, color: c.sleep),
-            const SizedBox(height: 18),
-            Text(
-              syncing ? l.t('syncing') : l.t('no_sleep_data'),
-              style: GoogleFonts.manrope(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFFF3F5F8),
+            Expanded(
+              child: Text(
+                night.fromServer
+                    ? l.t('sleep_saved_night')
+                    : l.t('sleep_last_night'),
+                style: _overline,
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              syncing
-                  ? l.t('syncing_sub')
-                  : connected
-                  ? l.t('no_sleep_sub_connected')
-                  : l.t('no_sleep_sub'),
-              textAlign: TextAlign.center,
-              style: TextStyle(color: c.subtext, fontSize: 14, height: 1.5),
-            ),
+            if (validated)
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${summary!.score}',
+                      style: AppTheme.numeric(
+                        fontSize: 20,
+                        color: AppTheme.good,
+                      ),
+                    ),
+                    const TextSpan(
+                      text: ' / 100',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.subtext,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              _Chip(text: l.t('sleep_stages_chip'), color: AppTheme.subtext),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────── Main Content ───────────────────────────────────
-
-class _SleepContent extends StatelessWidget {
-  const _SleepContent({
-    required this.summary,
-    required this.l,
-    required this.c,
-  });
-
-  final SleepSummary summary;
-  final AppLocalizations l;
-  final AppColors c;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 32),
-      children: [
-        _SummaryCard(summary: summary, l: l, c: c),
-        const SizedBox(height: 14),
-        _HypnogramCard(summary: summary, l: l, c: c),
-        const SizedBox(height: 14),
-        _BreakdownCard(summary: summary, l: l, c: c),
-        const SizedBox(height: 14),
-        _StatsRow(summary: summary, l: l, c: c),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────── Summary Card ───────────────────────────────────
-
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({required this.summary, required this.l, required this.c});
-
-  final SleepSummary summary;
-  final AppLocalizations l;
-  final AppColors c;
-
-  List<Color> get _scoreColors {
-    final s = summary.score;
-    if (s >= 85) return [c.accent, c.accent2];
-    if (s >= 70) return [c.sleep, c.sleepEnd];
-    if (s >= 50) return [c.warn, c.warnEnd];
-    return [c.danger, c.warnEnd];
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = _scoreColors;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFF2A313A)),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF171B21), Color(0xFF171B21)],
+        const SizedBox(height: 10),
+        Text(
+          _fmtDur(l, night.asleepMinutes),
+          style: AppTheme.numeric(fontSize: 34),
         ),
-      ),
-      child: Row(
-        children: [
-          RingGauge(
-            value: summary.score.toDouble(),
-            max: 100,
-            colors: colors,
-            size: 120,
-            strokeWidth: 12,
-            center: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${summary.score}',
-                  style: GoogleFonts.manrope(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF3F5F8),
-                    height: 1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  l.t('sleep_score'),
-                  style: TextStyle(
-                    color: colors.first,
-                    fontSize: 7.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 18),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  l.t('sleep_duration'),
-                  style: TextStyle(
-                    color: c.subtext,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  summary.durationStr,
-                  style: GoogleFonts.manrope(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF3F5F8),
-                    height: 1,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (summary.bedTime != null)
-                  _timeRow(
-                    Icons.bedtime_outlined,
-                    l.t('bedtime'),
-                    summary.bedTime!,
-                  ),
-                const SizedBox(height: 6),
-                if (summary.wakeTime != null)
-                  _timeRow(
-                    Icons.wb_sunny_outlined,
-                    l.t('wake_time'),
-                    summary.wakeTime!,
-                  ),
-              ],
-            ),
+        const SizedBox(height: 4),
+        Text(
+          '${_fmtClock(context, night.start)} — ${_fmtClock(context, night.end)}'
+          ' · ${l.t('sleep_in_bed').replaceAll('{d}', _fmtDur(l, night.inBedMinutes))}',
+          style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+        ),
+        if (delta != null) ...[
+          const SizedBox(height: 10),
+          _Chip(
+            text: l
+                .t(delta >= 0 ? 'sleep_vs_norm_more' : 'sleep_vs_norm_less')
+                .replaceAll('{d}', _fmtDur(l, delta.abs())),
+            color: delta >= 0 ? AppTheme.good : AppTheme.warn,
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _timeRow(IconData icon, String label, DateTime time) {
-    final hh = time.hour.toString().padLeft(2, '0');
-    final mn = time.minute.toString().padLeft(2, '0');
-    return Row(
-      children: [
-        Icon(icon, size: 13, color: c.subtext),
-        const SizedBox(width: 6),
-        Text(label, style: TextStyle(color: c.subtext, fontSize: 11)),
-        const SizedBox(width: 8),
-        Text(
-          '$hh:$mn',
-          style: GoogleFonts.manrope(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFFC6CCD6),
-          ),
-        ),
       ],
     );
   }
 }
 
-// ─────────────────────────── Hypnogram Card ─────────────────────────────────
+class _Chip extends StatelessWidget {
+  const _Chip({required this.text, required this.color});
 
-class _HypnogramCard extends StatelessWidget {
-  const _HypnogramCard({
-    required this.summary,
-    required this.l,
-    required this.c,
-  });
-
-  final SleepSummary summary;
-  final AppLocalizations l;
-  final AppColors c;
+  final String text;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final stages = [
-      (l.t('awake_stage'), _stageColor(SleepStage.awake)),
-      (l.t('rem_sleep'), _stageColor(SleepStage.rem)),
-      (l.t('light_sleep'), _stageColor(SleepStage.light)),
-      (l.t('deep_sleep'), _stageColor(SleepStage.deep)),
-    ];
-
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecor,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: color.withValues(alpha: 0.12),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────── Phases ─────────────────────────────────────────
+
+class _PhaseStrip extends StatelessWidget {
+  const _PhaseStrip({required this.summary, required this.l});
+
+  final SleepSummary summary;
+  final AppLocalizations l;
+
+  @override
+  Widget build(BuildContext context) {
+    final legend = [
+      (l.t('deep_sleep'), _deepColor),
+      (l.t('rem_sleep'), _remColor),
+      (l.t('light_sleep'), _lightColor),
+      (l.t('awake_stage'), _awakeColor),
+    ];
+    return _Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            l.t('hypnogram'),
-            style: TextStyle(
-              color: c.subtext,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 34,
+              width: double.infinity,
+              child: CustomPaint(
+                painter: _PhasePainter(summary.timeline),
+              ),
             ),
           ),
-          const SizedBox(height: 14),
-          // Stage labels + chart
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 14,
+            runSpacing: 6,
             children: [
-              // Y-axis labels
-              SizedBox(
-                width: 48,
-                height: 120,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: stages.map((s) {
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Text(
-                        s.$1,
-                        style: TextStyle(
-                          color: s.$2.withValues(alpha: 0.9),
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                        ),
+              for (final (label, color) in legend)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: color,
+                        borderRadius: BorderRadius.circular(3),
                       ),
-                    );
-                  }).toList(),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              // Chart
-              Expanded(
-                child: SizedBox(
-                  height: 120,
-                  child: CustomPaint(
-                    size: Size.infinite,
-                    painter: _HypnogramPainter(timeline: summary.timeline),
-                  ),
-                ),
-              ),
             ],
-          ),
-          const SizedBox(height: 10),
-          // X-axis time labels
-          Padding(
-            padding: const EdgeInsets.only(left: 56),
-            child: _TimeLabels(summary: summary, subtext: c.subtext),
           ),
         ],
       ),
@@ -464,191 +442,284 @@ class _HypnogramCard extends StatelessWidget {
   }
 }
 
-Color _stageColor(SleepStage stage) => switch (stage) {
-  SleepStage.deep => const Color(0xFF4A6CF7),
-  SleepStage.light => const Color(0xFF9B8CFF),
-  SleepStage.rem => const Color(0xFF36E0FF),
-  SleepStage.awake => const Color(0xFF5F6874),
-  SleepStage.unknown => const Color(0xFF5F6874),
-};
-
-class _TimeLabels extends StatelessWidget {
-  const _TimeLabels({required this.summary, required this.subtext});
-
-  final SleepSummary summary;
-  final Color subtext;
-
-  @override
-  Widget build(BuildContext context) {
-    final bed = summary.bedTime;
-    if (bed == null || summary.timeline.isEmpty) return const SizedBox.shrink();
-
-    final total = summary.timeline.length;
-    const labelCount = 4;
-    final labels = <String>[];
-    final positions = <double>[];
-
-    for (var i = 0; i <= labelCount; i++) {
-      final frac = i / labelCount;
-      final minuteOffset = (frac * total).round();
-      final t = bed.add(Duration(minutes: minuteOffset));
-      labels.add(
-        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}',
-      );
-      positions.add(frac);
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SizedBox(
-          height: 14,
-          child: Stack(
-            children: List.generate(labels.length, (i) {
-              return Positioned(
-                left: positions[i] * constraints.maxWidth - 16,
-                child: Text(
-                  labels[i],
-                  style: TextStyle(
-                    color: subtext,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              );
-            }),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _HypnogramPainter extends CustomPainter {
-  const _HypnogramPainter({required this.timeline});
+class _PhasePainter extends CustomPainter {
+  _PhasePainter(this.timeline);
 
   final List<SleepStage> timeline;
 
-  double _stageY(SleepStage stage, double height) => switch (stage) {
-    SleepStage.awake => 0.0,
-    SleepStage.unknown => 0.0,
-    SleepStage.rem => height * 0.33,
-    SleepStage.light => height * 0.66,
-    SleepStage.deep => height,
+  static Color _color(SleepStage s) => switch (s) {
+    SleepStage.deep => _deepColor,
+    SleepStage.rem => _remColor,
+    SleepStage.light => _lightColor,
+    SleepStage.awake || SleepStage.unknown => _awakeColor,
   };
 
   @override
   void paint(Canvas canvas, Size size) {
     if (timeline.isEmpty) return;
-
-    final n = timeline.length;
-    final dx = size.width / n;
-
-    // Draw faint horizontal grid bands
-    final gridPaint = Paint()
-      ..color = const Color(0xFF2A313A)
-      ..strokeWidth = 0.5;
-    for (final frac in [0.0, 0.33, 0.66, 1.0]) {
-      final y = frac * size.height;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-
-    // Draw filled stage rectangles
-    for (var i = 0; i < n; i++) {
-      final stage = timeline[i];
-      final x = i * dx;
-      final y = _stageY(stage, size.height);
+    final step = size.width / timeline.length;
+    var start = 0;
+    // Merge runs of the same stage into one rect.
+    for (var i = 1; i <= timeline.length; i++) {
+      if (i < timeline.length && timeline[i] == timeline[start]) continue;
       canvas.drawRect(
-        Rect.fromLTWH(x, y, dx + 0.5, size.height - y),
-        Paint()..color = _stageColor(stage).withValues(alpha: 0.12),
+        Rect.fromLTWH(start * step, 0, (i - start) * step + 0.5, size.height),
+        Paint()..color = _color(timeline[start]),
       );
-    }
-
-    // Draw step-function hypnogram line
-    final linePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeJoin = StrokeJoin.miter
-      ..strokeCap = StrokeCap.square;
-
-    var i = 0;
-    while (i < n) {
-      // Find a run of the same stage
-      final stage = timeline[i];
-      var j = i;
-      while (j < n && timeline[j] == stage) {
-        j++;
-      }
-      final x0 = i * dx;
-      final x1 = j * dx;
-      final y = _stageY(stage, size.height);
-
-      linePaint.color = _stageColor(stage);
-      // Horizontal segment for this run
-      canvas.drawLine(Offset(x0, y), Offset(x1, y), linePaint);
-
-      // Vertical drop to next stage
-      if (j < n) {
-        final nextY = _stageY(timeline[j], size.height);
-        // Use next stage color for the vertical
-        linePaint.color = _stageColor(timeline[j]);
-        canvas.drawLine(Offset(x1, y), Offset(x1, nextY), linePaint);
-      }
-
-      i = j;
+      start = i;
     }
   }
 
   @override
-  bool shouldRepaint(_HypnogramPainter old) => old.timeline != timeline;
+  bool shouldRepaint(_PhasePainter old) => old.timeline != timeline;
 }
 
-// ─────────────────────────── Breakdown Card ─────────────────────────────────
-
-class _BreakdownCard extends StatelessWidget {
-  const _BreakdownCard({
-    required this.summary,
-    required this.l,
-    required this.c,
-  });
+class _StageTiles extends StatelessWidget {
+  const _StageTiles({required this.summary, required this.l});
 
   final SleepSummary summary;
   final AppLocalizations l;
-  final AppColors c;
 
   @override
   Widget build(BuildContext context) {
-    final total = summary.totalMinutes;
-    final stages = [
-      (l.t('deep_sleep'), SleepStage.deep, summary.deepMinutes),
-      (l.t('light_sleep'), SleepStage.light, summary.lightMinutes),
-      (l.t('rem_sleep'), SleepStage.rem, summary.remMinutes),
-      (l.t('awake_stage'), SleepStage.awake, summary.awakeMinutes),
-    ];
+    Widget tile(String label, String value, {String? unit}) => Expanded(
+      child: _Card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: _overline,
+            ),
+            const SizedBox(height: 8),
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: value,
+                    style: AppTheme.numeric(fontSize: 22),
+                  ),
+                  if (unit != null)
+                    TextSpan(
+                      text: ' $unit',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.subtext,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return Row(
+      children: [
+        tile(l.t('deep_sleep'), _fmtHm(summary.deepMinutes)),
+        const SizedBox(width: 10),
+        tile(l.t('rem_sleep'), _fmtHm(summary.remMinutes)),
+        const SizedBox(width: 10),
+        tile(
+          l.t('sleep_efficiency'),
+          summary.efficiencyStr.replaceAll('%', ''),
+          unit: summary.totalMinutes == 0 ? null : '%',
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────── Coach ──────────────────────────────────────────
+
+/// Debt and bedtime from saved nights. Needs [_minNightsForAdvice] nights in
+/// the last week; otherwise explains when advice will appear.
+class _CoachCard extends StatelessWidget {
+  const _CoachCard({required this.saved, required this.l});
+
+  final List<_SavedNight> saved;
+  final AppLocalizations l;
+
+  @override
+  Widget build(BuildContext context) {
+    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+    final week = saved.where((n) => n.end.isAfter(weekAgo)).toList();
+
+    String body;
+    if (week.length < _minNightsForAdvice) {
+      body = l.t('sleep_coach_need');
+    } else {
+      final debt = week.fold<int>(
+        0,
+        (s, n) => s + (n.minutes < _needMinutes ? _needMinutes - n.minutes : 0),
+      );
+      final wake =
+          week.fold<int>(0, (s, n) => s + n.end.hour * 60 + n.end.minute) ~/
+          week.length;
+      final bed = wake - _needMinutes;
+      body = l
+          .t(debt > 0 ? 'sleep_coach_debt' : 'sleep_coach_ok')
+          .replaceAll('{d}', _fmtDur(l, debt))
+          .replaceAll('{wake}', _fmtClockMinutes(context, wake))
+          .replaceAll('{bed}', _fmtClockMinutes(context, bed));
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: _cardDecor,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.accentSoft,
+        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.35)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.auto_awesome_outlined,
+                size: 15,
+                color: AppTheme.accent,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                l.t('sleep_coach_title'),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.9,
+                  color: AppTheme.accent,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Text(
-            l.t('stage_breakdown'),
-            style: TextStyle(
-              color: c.subtext,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.0,
+            body,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: AppTheme.text,
             ),
           ),
-          const SizedBox(height: 14),
-          ...stages.map(
-            (s) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _StageRow(
-                label: s.$1,
-                stage: s.$2,
-                minutes: s.$3,
-                total: total,
+          if (week.length >= _minNightsForAdvice) ...[
+            const SizedBox(height: 6),
+            Text(
+              l.t('sleep_coach_basis'),
+              style: const TextStyle(fontSize: 12, color: AppTheme.subtext),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────── History ────────────────────────────────────────
+
+class _History extends StatelessWidget {
+  const _History({required this.nights, required this.l});
+
+  final List<_SavedNight> nights;
+  final AppLocalizations l;
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = MaterialLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l.t('sleep_history'), style: _overline),
+        const SizedBox(height: 8),
+        _Card(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Column(
+            children: [
+              for (var i = 0; i < nights.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          fmt.formatMediumDate(nights[i].end),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppTheme.text,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        _fmtDur(l, nights[i].minutes),
+                        style: AppTheme.numeric(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: nights[i].minutes >= _needMinutes
+                              ? AppTheme.good
+                              : AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────── Shared bits ────────────────────────────────────
+
+class _Card extends StatelessWidget {
+  const _Card({
+    required this.child,
+    this.padding = const EdgeInsets.all(14),
+  });
+
+  final Widget child;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.outline),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _InfoNote extends StatelessWidget {
+  const _InfoNote({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 18, color: AppTheme.subtext),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: AppTheme.textSecondary,
               ),
             ),
           ),
@@ -658,175 +729,67 @@ class _BreakdownCard extends StatelessWidget {
   }
 }
 
-class _StageRow extends StatelessWidget {
-  const _StageRow({
-    required this.label,
-    required this.stage,
-    required this.minutes,
-    required this.total,
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.syncing,
+    required this.connected,
+    required this.error,
+    required this.onRetry,
+    required this.l,
   });
 
-  final String label;
-  final SleepStage stage;
-  final int minutes;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.appColors;
-    final color = _stageColor(stage);
-    final frac = total > 0 ? minutes / total : 0.0;
-    final pct = (frac * 100).round();
-    final h = minutes ~/ 60;
-    final m = minutes % 60;
-    final durStr = h > 0 ? '${h}h ${m.toString().padLeft(2, '0')}m' : '${m}m';
-
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 52,
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFFC6CCD6),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: frac,
-              minHeight: 6,
-              backgroundColor: const Color(0xFF2A313A),
-              valueColor: AlwaysStoppedAnimation<Color>(color),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 48,
-          child: Text(
-            durStr,
-            textAlign: TextAlign.right,
-            style: GoogleFonts.manrope(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFFC6CCD6),
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        SizedBox(
-          width: 30,
-          child: Text(
-            '$pct%',
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: c.subtext,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────── Stats Row ──────────────────────────────────────
-
-class _StatsRow extends StatelessWidget {
-  const _StatsRow({required this.summary, required this.l, required this.c});
-
-  final SleepSummary summary;
+  final bool syncing;
+  final bool connected;
+  final bool error;
+  final VoidCallback? onRetry;
   final AppLocalizations l;
-  final AppColors c;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    // A ListView so pull-to-refresh works on the empty state too.
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(32, 96, 32, 32),
       children: [
-        Expanded(
-          child: _StatCard(
-            label: l.t('sleep_efficiency'),
-            value: summary.efficiencyStr,
-            color: c.accent,
+        Icon(
+          error ? Icons.error_outline : Icons.bedtime_outlined,
+          size: 56,
+          color: error ? AppTheme.danger : AppTheme.accent,
+        ),
+        const SizedBox(height: 18),
+        Text(
+          syncing
+              ? l.t('syncing')
+              : error
+              ? l.t('sleep_sync_error')
+              : l.t('no_sleep_data'),
+          textAlign: TextAlign.center,
+          style: AppTheme.numeric(fontSize: 20),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          syncing
+              ? l.t('syncing_sub')
+              : connected
+              ? l.t('no_sleep_sub_connected')
+              : l.t('no_sleep_sub'),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: AppTheme.subtext,
+            fontSize: 14,
+            height: 1.5,
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            label: l.t('total_time'),
-            value: () {
-              final h = summary.totalMinutes ~/ 60;
-              final m = summary.totalMinutes % 60;
-              return '${h}h ${m.toString().padLeft(2, '0')}m';
-            }(),
-            color: c.sleep,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.appColors;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardDecor,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: c.subtext,
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 7),
-          Text(
-            value,
-            style: GoogleFonts.manrope(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: color,
+        if (error && onRetry != null) ...[
+          const SizedBox(height: 18),
+          Center(
+            child: OutlinedButton(
+              onPressed: onRetry,
+              child: Text(l.t('sleep_retry')),
             ),
           ),
         ],
-      ),
+      ],
     );
   }
 }
-
-// ─────────────────────────── Shared Decoration ──────────────────────────────
-
-const _cardDecor = BoxDecoration(
-  borderRadius: BorderRadius.all(Radius.circular(20)),
-  color: Color(0xFF171B21),
-  border: Border.fromBorderSide(BorderSide(color: Color(0xFF2A313A))),
-);

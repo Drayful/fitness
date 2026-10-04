@@ -132,7 +132,11 @@ class WorkoutSummary {
     required this.distanceM,
     this.averageHeartRate,
     this.maxHeartRate,
+    this.heartRateSamples = const [],
   });
+
+  /// Spacing of [heartRateSamples]: one reading per this many seconds.
+  static const heartRateSampleSeconds = 5;
 
   factory WorkoutSummary.fromLive(
     ExerciseType type,
@@ -140,6 +144,7 @@ class WorkoutSummary {
     WorkoutLive live, {
     int? averageHeartRate,
     int? maxHeartRate,
+    List<int> heartRateSamples = const [],
   }) => WorkoutSummary(
     type: type,
     startTime: startTime,
@@ -150,6 +155,7 @@ class WorkoutSummary {
     distanceM: live.distanceM,
     averageHeartRate: averageHeartRate,
     maxHeartRate: maxHeartRate,
+    heartRateSamples: List.unmodifiable(heartRateSamples),
   );
 
   final ExerciseType type;
@@ -161,6 +167,13 @@ class WorkoutSummary {
   final double distanceM;
   final int? averageHeartRate;
   final int? maxHeartRate;
+
+  /// Heart rate through the session, every [heartRateSampleSeconds] seconds.
+  /// Kept on the phone for the summary chart; the backend does not accept it
+  /// in `metrics` yet. Empty for workouts loaded from the server.
+  final List<int> heartRateSamples;
+
+  DateTime get endTime => startTime.add(Duration(seconds: durationSeconds));
 
   WorkoutLive get asLive => WorkoutLive(
     heartRate: heartRate,

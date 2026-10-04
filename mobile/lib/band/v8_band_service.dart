@@ -132,6 +132,43 @@ class V8BandService extends ChangeNotifier {
   bool get hasRememberedDevice => _rememberedDeviceId != null;
   bool get isAutoReconnecting => _autoReconnecting;
 
+  // ── Last successful sync (Spec-06: warn after three days) ──
+  static const _lastSyncKey = 'last_band_sync_at_v1';
+  static const staleSyncAfter = Duration(days: 3);
+
+  /// When data last arrived from the watch, persisted across launches so the
+  /// home screen can say how old the numbers are when the watch is away.
+  DateTime? lastSyncAt;
+  DateTime? _lastSyncSavedAt;
+
+  bool get isSyncStale =>
+      lastSyncAt != null &&
+      DateTime.now().difference(lastSyncAt!) > staleSyncAfter;
+
+  Future<void> _loadLastSync() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_lastSyncKey);
+      lastSyncAt = raw == null ? null : DateTime.tryParse(raw);
+    } catch (_) {}
+  }
+
+  void _markSynced() {
+    final now = DateTime.now();
+    lastSyncAt = now;
+    // Live packets arrive every second; persist at most once a minute.
+    final saved = _lastSyncSavedAt;
+    if (saved != null && now.difference(saved) < const Duration(minutes: 1)) {
+      return;
+    }
+    _lastSyncSavedAt = now;
+    unawaited(
+      SharedPreferences.getInstance()
+          .then((p) => p.setString(_lastSyncKey, now.toIso8601String()))
+          .catchError((_) => false),
+    );
+  }
+
   @override
   void notifyListeners() {
     if (!_disposed) super.notifyListeners();
@@ -168,6 +205,12 @@ class V8BandService extends ChangeNotifier {
   int _workoutHeartRateSum = 0;
   int _workoutHeartRateCount = 0;
   int _workoutHeartRateMax = 0;
+
+  /// One reading per [WorkoutSummary.heartRateSampleSeconds] for the summary
+  /// chart; capped at four hours.
+  final List<int> _workoutHeartRateSamples = [];
+  int _lastHeartRateBucket = -1;
+  static const _maxHeartRateSamples = 4 * 3600 ~/ WorkoutSummary.heartRateSampleSeconds;
 
   int? get _averageWorkoutHeartRate => _workoutHeartRateCount == 0
       ? null
@@ -536,6 +579,7 @@ class V8BandService extends ChangeNotifier {
   /// Reconnects to the watch used last time, without a scan. Call once on
   /// launch; it is a no-op until a watch has been connected successfully.
   Future<void> restoreLastDevice() async {
+    await _loadLastSync();
     try {
       final prefs = await SharedPreferences.getInstance();
       _rememberedDeviceId = prefs.getString(_lastDeviceKey);
@@ -977,6 +1021,7 @@ class V8BandService extends ChangeNotifier {
       if (generation != _connectionGeneration) return;
       sleepRecords = V8Protocol.parseSleepPackets(packets, variant);
       sleepSummary = SleepSummary.fromRecords(sleepRecords);
+      _markSynced();
     } catch (error) {
       if (generation != _connectionGeneration) return;
       sleepSyncError = error.toString();
@@ -1054,6 +1099,7 @@ class V8BandService extends ChangeNotifier {
         _pending.remove(cmd)?.complete(bytes);
         liveVitals = vitals;
         liveVitalsAt = DateTime.now();
+        _markSynced();
         liveHrStatus = vitals.heartRate != null
             ? 'Live heart rate'
             : 'Waiting for heart rate... stay still';
@@ -1126,6 +1172,8 @@ class V8BandService extends ChangeNotifier {
         _workoutHeartRateSum = 0;
         _workoutHeartRateCount = 0;
         _workoutHeartRateMax = 0;
+        _workoutHeartRateSamples.clear();
+        _lastHeartRateBucket = -1;
         workoutEndedByDevice = false;
         workoutInactiveWarning = null;
         _startWorkoutHeartbeat();
@@ -1192,6 +1240,7 @@ class V8BandService extends ChangeNotifier {
         workoutLive!,
         averageHeartRate: _averageWorkoutHeartRate,
         maxHeartRate: _workoutHeartRateCount == 0 ? null : _workoutHeartRateMax,
+        heartRateSamples: _workoutHeartRateSamples,
       );
       workoutHistory.insert(0, summary);
       if (workoutHistory.length > 20) workoutHistory.removeLast();
@@ -1269,6 +1318,7 @@ class V8BandService extends ChangeNotifier {
             maxHeartRate: _workoutHeartRateCount == 0
                 ? null
                 : _workoutHeartRateMax,
+            heartRateSamples: _workoutHeartRateSamples,
           );
           workoutHistory.insert(0, summary);
           if (workoutHistory.length > 20) workoutHistory.removeLast();
@@ -1306,6 +1356,14 @@ class V8BandService extends ChangeNotifier {
           _workoutHeartRateCount++;
           if (live.heartRate > _workoutHeartRateMax) {
             _workoutHeartRateMax = live.heartRate;
+          }
+          final bucket =
+              _workoutClock.elapsed.inSeconds ~/
+              WorkoutSummary.heartRateSampleSeconds;
+          if (bucket != _lastHeartRateBucket &&
+              _workoutHeartRateSamples.length < _maxHeartRateSamples) {
+            _lastHeartRateBucket = bucket;
+            _workoutHeartRateSamples.add(live.heartRate);
           }
         }
         // 2208A frames carry no duration; fall back to elapsed wall time so

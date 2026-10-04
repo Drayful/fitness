@@ -46,6 +46,10 @@ class DashboardScreen extends StatelessWidget {
             children: [
               _Header(name: session.userName, l: l),
               const SizedBox(height: 14),
+              if (band.isSyncStale) ...[
+                _StaleSyncBanner(lastSync: band.lastSyncAt!, l: l),
+                const SizedBox(height: 10),
+              ],
               if (connected)
                 _BandBanner(band: band, l: l)
               else
@@ -79,6 +83,61 @@ String _fill(String template, Map<String, Object> values) {
   var out = template;
   values.forEach((k, v) => out = out.replaceAll('{$k}', '$v'));
   return out;
+}
+
+/// "today 14:05" style for today, otherwise date + time.
+String _fmtWhen(BuildContext context, DateTime t) {
+  final loc = MaterialLocalizations.of(context);
+  final time = loc.formatTimeOfDay(
+    TimeOfDay.fromDateTime(t),
+    alwaysUse24HourFormat: true,
+  );
+  final now = DateTime.now();
+  final sameDay = t.year == now.year && t.month == now.month && t.day == now.day;
+  return sameDay ? time : '${loc.formatMediumDate(t)}, $time';
+}
+
+/// Spec-06: yellow strip when the watch has not synced for three days —
+/// past that the band may start overwriting history it could not hand over.
+class _StaleSyncBanner extends StatelessWidget {
+  const _StaleSyncBanner({required this.lastSync, required this.l});
+
+  final DateTime lastSync;
+  final AppLocalizations l;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = DateTime.now().difference(lastSync).inDays;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: AppTheme.warn.withValues(alpha: 0.12),
+        border: Border.all(color: AppTheme.warn.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.warning_amber_rounded,
+            size: 18,
+            color: AppTheme.warn,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _fill(l.t('home_sync_stale'), {'d': days}),
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: AppTheme.text,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _Header extends StatelessWidget {
@@ -251,6 +310,19 @@ class _NoBandCard extends StatelessWidget {
               ),
             ],
           ),
+          if (band.lastSyncAt != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              _fill(l.t('home_last_sync'), {
+                'when': _fmtWhen(context, band.lastSyncAt!),
+              }),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.text,
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Text(
             remembered ? l.t('home_noband_sub') : l.t('home_noband_none_sub'),

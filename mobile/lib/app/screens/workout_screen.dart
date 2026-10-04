@@ -6,6 +6,7 @@ import '../../band/v8_band_service.dart';
 import '../../band/workout_model.dart';
 import '../../main.dart';
 import '../l10n/app_localizations.dart';
+import '../theme.dart';
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 
@@ -436,25 +437,22 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 24),
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: accent.withValues(alpha: 0.12),
+                const SizedBox(height: 8),
+                // App-06-Workout header: time window, status, sport.
+                if (s != null)
+                  Text(
+                    '${_clock(context, s.startTime)} — ${_clock(context, s.endTime)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppTheme.subtext,
+                    ),
                   ),
-                  child: Icon(Icons.check_rounded, color: accent, size: 44),
-                ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 4),
                 Text(
                   l.t('workout_complete'),
-                  style: GoogleFonts.manrope(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF3F5F8),
-                  ),
+                  style: AppTheme.numeric(fontSize: 26),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -465,7 +463,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 20),
                 if (s != null) ...[
                   _SummaryCard(summary: s, l: l, accent: accent),
                 ] else ...[
@@ -506,6 +504,12 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       ],
     );
   }
+
+  static String _clock(BuildContext context, DateTime t) =>
+      MaterialLocalizations.of(context).formatTimeOfDay(
+        TimeOfDay.fromDateTime(t),
+        alwaysUse24HourFormat: true,
+      );
 
   static String _exerciseName(ExerciseType type, AppLocalizations l) {
     return switch (type) {
@@ -868,6 +872,8 @@ class _ControlButton extends StatelessWidget {
   }
 }
 
+/// Finished-workout summary after App-06-Workout: four headline tiles, the
+/// heart-rate chart recorded during the session, then the remaining details.
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
     required this.summary,
@@ -882,87 +888,242 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final live = summary.asLive;
+    final samples = summary.heartRateSamples
+        .where((bpm) => bpm >= 30 && bpm <= 240)
+        .toList();
+    final avg = summary.averageHeartRate;
+    final max = summary.maxHeartRate;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _tile(l.t('workout_duration'), live.durationStr)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _tile(
+                l.t('workout_avg_hr'),
+                avg?.toString() ?? '—',
+                unit: avg == null ? null : l.t('bpm'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _tile(
+                l.t('workout_max_hr'),
+                max?.toString() ?? '—',
+                unit: max == null ? null : l.t('bpm'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _tile(
+                l.t('workout_calories'),
+                live.caloriesStr,
+                unit: l.t('kcal'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _card(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l.t('workout_hr_chart'), style: _overline),
+              const SizedBox(height: 12),
+              if (samples.length >= 2)
+                SizedBox(
+                  height: 120,
+                  width: double.infinity,
+                  child: CustomPaint(
+                    painter: _HeartRatePainter(samples, color: accent),
+                  ),
+                )
+              else
+                Text(
+                  l.t('workout_hr_chart_empty'),
+                  style: const TextStyle(fontSize: 13, color: AppTheme.subtext),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(l.t('workout_details'), style: _overline),
+        const SizedBox(height: 8),
+        _card(
+          Column(
+            children: [
+              _row(l.t('steps'), live.stepsStr),
+              if (summary.type.showDistance) ...[
+                _divider(),
+                _row(
+                  l.t('workout_distance'),
+                  live.distanceM > 0
+                      ? '${live.distanceValueStr} ${live.distanceUnit}'
+                      : '—',
+                ),
+              ],
+              if (summary.type.showDistance && live.distanceM >= 10) ...[
+                _divider(),
+                _row(l.t('workout_pace'), '${live.paceStr} /km'),
+              ],
+              _divider(),
+              _row(
+                l.t('workout_last_hr'),
+                live.heartRate > 0 ? '${live.heartRate} ${l.t('bpm')}' : '—',
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        ),
+      ],
+    );
+  }
+
+  static const _overline = TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.9,
+    color: AppTheme.subtext,
+  );
+
+  Widget _card(Widget child, {EdgeInsets padding = const EdgeInsets.all(15)}) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: padding,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        color: const Color(0xFF171B21),
-        border: Border.all(color: const Color(0xFF2A313A)),
+        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.outline),
       ),
-      child: Column(
+      child: child,
+    );
+  }
+
+  Widget _tile(String label, String value, {String? unit}) {
+    return _card(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _row(
-            Icons.timer_rounded,
-            l.t('workout_duration'),
-            live.durationStr,
-            accent,
+          Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: _overline,
           ),
-          if (summary.type.showDistance) ...[
-            _divider(),
-            _row(
-              Icons.route_rounded,
-              l.t('workout_distance'),
-              live.distanceM > 0
-                  ? '${live.distanceValueStr} ${live.distanceUnit}'
-                  : '—',
-              accent,
+          const SizedBox(height: 8),
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: value, style: AppTheme.numeric(fontSize: 24)),
+                if (unit != null)
+                  TextSpan(
+                    text: ' $unit',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.subtext,
+                    ),
+                  ),
+              ],
             ),
-          ],
-          _divider(),
-          _row(
-            Icons.local_fire_department_rounded,
-            l.t('workout_calories'),
-            '${live.caloriesStr} ${l.t('kcal')}',
-            const Color(0xFFFFB23E),
           ),
-          _divider(),
-          _row(
-            Icons.favorite_rounded,
-            l.t('workout_last_hr'),
-            live.heartRate > 0 ? '${live.heartRate} ${l.t('bpm')}' : '--',
-            const Color(0xFFFF5F9E),
-          ),
-          _divider(),
-          _row(Icons.directions_walk, l.t('steps'), live.stepsStr, accent),
-          if (summary.type.showDistance && live.distanceM >= 10) ...[
-            _divider(),
-            _row(
-              Icons.speed_rounded,
-              l.t('workout_pace'),
-              '${live.paceStr} /km',
-              const Color(0xFF9B8CFF),
-            ),
-          ],
         ],
       ),
     );
   }
 
-  Widget _row(IconData icon, String label, String value, Color color) {
+  Widget _row(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 12),
-          Text(
-            label,
-            style: const TextStyle(color: Color(0xFFC6CCD6), fontSize: 14),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 14,
+              ),
+            ),
           ),
-          const Spacer(),
           Text(
             value,
-            style: GoogleFonts.manrope(
-              color: const Color(0xFFF3F5F8),
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
+            style: AppTheme.numeric(fontSize: 15, fontWeight: FontWeight.w700),
           ),
         ],
       ),
     );
   }
 
-  Widget _divider() =>
-      const Divider(color: Color(0xFF2A313A), height: 1, thickness: 1);
+  Widget _divider() => const Divider(height: 1);
+}
+
+/// Heart-rate line with a faint fill and min/max guides.
+class _HeartRatePainter extends CustomPainter {
+  _HeartRatePainter(this.samples, {required this.color});
+
+  final List<int> samples;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    var lo = samples.first;
+    var hi = samples.first;
+    for (final v in samples) {
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    // Pad the range so a flat line does not sit on the border.
+    final pad = ((hi - lo) * 0.15).clamp(5, 30).toDouble();
+    final bottom = lo - pad;
+    final range = (hi + pad) - bottom;
+
+    final dx = size.width / (samples.length - 1);
+    double y(int v) => size.height - (v - bottom) / range * size.height;
+
+    final line = Path()..moveTo(0, y(samples.first));
+    for (var i = 1; i < samples.length; i++) {
+      line.lineTo(i * dx, y(samples[i]));
+    }
+    final fill = Path.from(line)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    final guide = Paint()
+      ..color = AppTheme.outline
+      ..strokeWidth = 1;
+    canvas.drawLine(Offset(0, y(hi)), Offset(size.width, y(hi)), guide);
+    canvas.drawLine(Offset(0, y(lo)), Offset(size.width, y(lo)), guide);
+
+    canvas.drawPath(
+      fill,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [color.withValues(alpha: 0.28), color.withValues(alpha: 0)],
+        ).createShader(Offset.zero & size),
+    );
+    canvas.drawPath(
+      line,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_HeartRatePainter old) =>
+      old.samples != samples || old.color != color;
 }

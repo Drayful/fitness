@@ -34,6 +34,47 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
     if (mounted) setState(() {});
   }
 
+  bool _refreshing = false;
+
+  Future<void> _refreshData() async {
+    setState(() => _refreshing = true);
+    try {
+      await widget.service.refresh();
+    } catch (_) {
+      // The status line already reflects what went wrong.
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  /// Hub-01-Connect status line: model · battery · firmware · last sync.
+  static String _connectedDetails(
+    V8BandService service,
+    AppLocalizations l,
+    BuildContext context,
+  ) {
+    final info = service.deviceInfo;
+    final battery = info?.batteryPercent;
+    final synced = service.lastSyncAt;
+    final loc = MaterialLocalizations.of(context);
+    return [
+      service.variant.label,
+      if (battery != null)
+        l.t('home_band_battery').replaceAll('{n}', '$battery'),
+      if (info != null && info.firmware != 'unknown') info.firmware,
+      if (synced != null)
+        l
+            .t('home_last_sync')
+            .replaceAll(
+              '{when}',
+              loc.formatTimeOfDay(
+                TimeOfDay.fromDateTime(synced),
+                alwaysUse24HourFormat: true,
+              ),
+            ),
+    ].join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final service = widget.service;
@@ -53,12 +94,12 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(25),
-              border: Border.all(color: c.accent.withValues(alpha: 0.25)),
-              gradient: const LinearGradient(
-                colors: [Color(0xFF18302E), Color(0xFF171B21)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+              borderRadius: BorderRadius.circular(18),
+              color: AppTheme.surface,
+              border: Border.all(
+                color: connected
+                    ? AppTheme.good.withValues(alpha: 0.45)
+                    : AppTheme.outline,
               ),
             ),
             child: Column(
@@ -98,13 +139,13 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            l.t(
-                              connected
-                                  ? service.variantConfirmed
-                                        ? 'watch_connected_ready_sub'
-                                        : 'watch_connected_sub'
-                                  : 'watch_search_sub',
-                            ),
+                            connected && service.variantConfirmed
+                                ? _connectedDetails(service, l, context)
+                                : l.t(
+                                    connected
+                                        ? 'watch_connected_sub'
+                                        : 'watch_search_sub',
+                                  ),
                             style: Theme.of(
                               context,
                             ).textTheme.bodySmall?.copyWith(color: c.subtext),
@@ -122,6 +163,27 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                   ),
                 ],
                 const SizedBox(height: 17),
+                if (connected && service.variantConfirmed) ...[
+                  // Spec-06: manual "refresh" on the watch screen.
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _refreshing ? null : _refreshData,
+                      icon: _refreshing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppTheme.bg,
+                              ),
+                            )
+                          : const Icon(Icons.sync),
+                      label: Text(l.t('watch_refresh')),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 SizedBox(
                   width: double.infinity,
                   child: connected
