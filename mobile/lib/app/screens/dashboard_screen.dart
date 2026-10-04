@@ -529,6 +529,9 @@ class _MetricsGrid extends StatelessWidget {
         ? recorded(BodyMetric.temperature)
         : null;
     final memoryCaption = l.t('from_band_memory');
+    // HRV and stress exist only as band measurements (0x56), never live.
+    final hrv = recorded(BodyMetric.hrv);
+    final stress = recorded(BodyMetric.stress);
 
     final tiles = <Widget>[
       _Tile(
@@ -564,6 +567,20 @@ class _MetricsGrid extends StatelessWidget {
         color: AppTheme.accent,
         caption: tempRecorded != null ? memoryCaption : null,
       ),
+      _Tile(
+        label: l.t('hrv'),
+        value: hrv?.round().toString(),
+        unit: l.t('unit_ms'),
+        color: AppTheme.good,
+        caption: hrv != null ? memoryCaption : null,
+      ),
+      _Tile(
+        label: l.t('stress_label'),
+        value: stress?.round().toString(),
+        unit: '/ 100',
+        color: stress == null || stress < 60 ? AppTheme.good : AppTheme.warn,
+        caption: stress != null ? memoryCaption : null,
+      ),
     ];
 
     return Column(
@@ -581,6 +598,14 @@ class _MetricsGrid extends StatelessWidget {
             Expanded(child: tiles[2]),
             SizedBox(width: 10),
             Expanded(child: tiles[3]),
+          ],
+        ),
+        SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: tiles[4]),
+            SizedBox(width: 10),
+            Expanded(child: tiles[5]),
           ],
         ),
       ],
