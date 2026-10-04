@@ -3,33 +3,36 @@ import 'package:flutter/material.dart';
 import '../../api/session_controller.dart';
 import '../../band/workout_model.dart';
 import '../l10n/app_localizations.dart';
+import '../theme.dart';
 
 class InsightsScreen extends StatelessWidget {
   const InsightsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild on light/dark switches: AppTheme getters are not inherited.
+    AppTheme.watch(context);
     final l = AppLocalizations.of(context);
     final session = SessionScope.of(context);
     final snapshots = session.recentVitals;
     return RefreshIndicator(
       onRefresh: session.synchronize,
       child: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(20),
         children: [
           Text(
             l.t('trends'),
             style: Theme.of(context).textTheme.headlineMedium,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           if (session.pendingUploadCount > 0) ...[
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(12),
                 child: Row(
                   children: [
-                    const Icon(Icons.cloud_upload_outlined),
-                    const SizedBox(width: 10),
+                    Icon(Icons.cloud_upload_outlined),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         '${l.t('pending_uploads')}: ${session.pendingUploadCount}',
@@ -53,11 +56,11 @@ class InsightsScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
           ],
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -65,7 +68,7 @@ class InsightsScreen extends StatelessWidget {
                     l.t('saved_history'),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     '${l.t('workouts_saved')}: ${session.savedWorkouts.length}',
                   ),
@@ -81,34 +84,34 @@ class InsightsScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text(
             l.t('saved_measurements'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           if (snapshots.isEmpty)
             Text(l.t('no_saved_measurements'))
           else
             for (final snapshot in snapshots)
               _SnapshotCard(snapshot: snapshot, l: l),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Text(
             l.t('workouts_saved'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           if (session.savedWorkouts.isEmpty)
             Text(l.t('no_workouts'))
           else
             for (final workout in session.savedWorkouts.take(5))
               _WorkoutCard(summary: workout, l: l),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Text(
             l.t('saved_sleep'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           if (session.savedSleepObservations.isEmpty)
             Text(l.t('no_sleep_data'))
           else
@@ -204,7 +207,7 @@ class _SnapshotCard extends StatelessWidget {
     ];
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -214,7 +217,7 @@ class _SnapshotCard extends StatelessWidget {
                   : '${MaterialLocalizations.of(context).formatMediumDate(when)} '
                         '${TimeOfDay.fromDateTime(when).format(context)}',
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(pieces.join(' · ')),
           ],
         ),

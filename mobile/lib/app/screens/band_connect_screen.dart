@@ -77,6 +77,8 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild on light/dark switches: AppTheme getters are not inherited.
+    AppTheme.watch(context);
     final service = widget.service;
     final l = AppLocalizations.of(context);
     final c = context.appColors;
@@ -89,10 +91,10 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(l.t('watch_connect_title'))),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 28),
+        padding: EdgeInsets.fromLTRB(18, 8, 18, 28),
         children: [
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(20),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
               color: AppTheme.surface,
@@ -120,7 +122,7 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                         size: 31,
                       ),
                     ),
-                    const SizedBox(width: 14),
+                    SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,7 +139,7 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                             ),
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4),
                           Text(
                             connected && service.variantConfirmed
                                 ? _connectedDetails(service, l, context)
@@ -156,13 +158,13 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                   ],
                 ),
                 if (scanning || connecting) ...[
-                  const SizedBox(height: 17),
+                  SizedBox(height: 17),
                   LinearProgressIndicator(
                     minHeight: 4,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ],
-                const SizedBox(height: 17),
+                SizedBox(height: 17),
                 if (connected && service.variantConfirmed) ...[
                   // Spec-06: manual "refresh" on the watch screen.
                   SizedBox(
@@ -170,7 +172,7 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                     child: FilledButton.icon(
                       onPressed: _refreshing ? null : _refreshData,
                       icon: _refreshing
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(
@@ -178,25 +180,25 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                                 color: AppTheme.bg,
                               ),
                             )
-                          : const Icon(Icons.sync),
+                          : Icon(Icons.sync),
                       label: Text(l.t('watch_refresh')),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                 ],
                 SizedBox(
                   width: double.infinity,
                   child: connected
                       ? OutlinedButton.icon(
                           onPressed: () => service.forgetDevice(),
-                          icon: const Icon(Icons.bluetooth_disabled),
+                          icon: Icon(Icons.bluetooth_disabled),
                           label: Text(l.t('watch_disconnect')),
                         )
                       : FilledButton.icon(
                           onPressed: scanning || connecting
                               ? null
                               : () => service.startScan(),
-                          icon: const Icon(Icons.bluetooth_searching),
+                          icon: Icon(Icons.bluetooth_searching),
                           label: Text(l.t('watch_scan_button')),
                         ),
                 ),
@@ -204,14 +206,14 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
             ),
           ),
           if (service.state == BandConnectionState.error) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: EdgeInsets.all(14),
                 child: Row(
                   children: [
                     Icon(Icons.info_outline, color: c.warn),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         service.statusMessage ?? l.t('watch_connect_failed'),
@@ -223,27 +225,27 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
             ),
           ],
           if (!connected && !connecting) ...[
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             _Heading(label: l.t('watch_candidates'), count: likely.length),
-            const SizedBox(height: 5),
+            SizedBox(height: 5),
             Text(
               l.t('watch_candidates_note'),
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: c.subtext),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             if (likely.isEmpty)
               Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(18),
+                  padding: EdgeInsets.all(18),
                   child: Row(
                     children: [
                       Icon(
                         scanning ? Icons.radar : Icons.watch_outlined,
                         color: c.subtext,
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           l.t(
@@ -264,9 +266,9 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
                   l: l,
                   onTap: () => service.connect(item.device),
                 ),
-                const SizedBox(height: 9),
+                SizedBox(height: 9),
               ],
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -280,24 +282,24 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
               ),
             ),
             if (_showOther) ...[
-              const SizedBox(height: 9),
+              SizedBox(height: 9),
               Text(
                 l.t('watch_other_note'),
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: c.subtext),
               ),
-              const SizedBox(height: 9),
+              SizedBox(height: 9),
               for (final item in other) ...[
                 _DeviceCard(
                   item: item,
                   l: l,
                   onTap: () => service.connect(item.device),
                 ),
-                const SizedBox(height: 9),
+                SizedBox(height: 9),
               ],
             ],
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             Text(
               l.t('watch_scan_tip'),
               style: Theme.of(
@@ -306,12 +308,12 @@ class _BandConnectScreenState extends State<BandConnectScreen> {
             ),
           ],
           if (connected) ...[
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             _ModelPicker(service: service, l: l),
-            const SizedBox(height: 13),
+            SizedBox(height: 13),
             _LiveCard(service: service, l: l),
             if (service.deviceInfo != null) ...[
-              const SizedBox(height: 13),
+              SizedBox(height: 13),
               _TechnicalDetails(service: service, l: l),
             ],
           ],
@@ -371,7 +373,7 @@ class _DeviceCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(22),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: EdgeInsets.all(14),
           child: Row(
             children: [
               Container(
@@ -380,7 +382,7 @@ class _DeviceCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: suggested
                       ? c.accent.withValues(alpha: 0.13)
-                      : const Color(0xFF2A313A),
+                      : AppTheme.outline,
                   borderRadius: BorderRadius.circular(15),
                 ),
                 child: Icon(
@@ -388,7 +390,7 @@ class _DeviceCard extends StatelessWidget {
                   color: suggested ? c.accent : c.subtext,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,14 +401,14 @@ class _DeviceCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: t.textTheme.titleSmall,
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3),
                     Text(
                       evidence,
                       style: t.textTheme.bodySmall?.copyWith(
                         color: suggested ? c.accent : c.subtext,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       '$signal · ID $suffix',
                       style: t.textTheme.labelSmall?.copyWith(color: c.subtext),
@@ -439,17 +441,17 @@ class _ModelPicker extends StatelessWidget {
         service.isStartingLive;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(l.t('watch_model_title'), style: t.textTheme.titleMedium),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               l.t('watch_model_note'),
               style: t.textTheme.bodySmall?.copyWith(color: c.subtext),
             ),
-            const SizedBox(height: 13),
+            SizedBox(height: 13),
             for (final variant in BandVariant.values) ...[
               ListTile(
                 shape: RoundedRectangleBorder(
@@ -458,13 +460,13 @@ class _ModelPicker extends StatelessWidget {
                     color:
                         service.variantConfirmed && service.variant == variant
                         ? c.accent
-                        : const Color(0xFF2A313A),
+                        : AppTheme.outline,
                   ),
                 ),
                 tileColor:
                     service.variantConfirmed && service.variant == variant
                     ? c.accent.withValues(alpha: 0.10)
-                    : const Color(0xFF12161B),
+                    : AppTheme.surfaceAlt,
                 leading: Icon(Icons.watch_outlined, color: c.accent),
                 title: Text(variant.label),
                 trailing: service.variantConfirmed && service.variant == variant
@@ -484,10 +486,10 @@ class _ModelPicker extends StatelessWidget {
                         }
                       },
               ),
-              if (variant != BandVariant.values.last) const SizedBox(height: 8),
+              if (variant != BandVariant.values.last) SizedBox(height: 8),
             ],
             if (!service.variantConfirmed) ...[
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Text(
                 l.t('watch_model_required'),
                 style: t.textTheme.bodySmall?.copyWith(color: c.warn),
@@ -513,12 +515,12 @@ class _LiveCard extends StatelessWidget {
     final vitals = service.liveVitals;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(l.t('watch_live_title'), style: t.textTheme.titleMedium),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -529,9 +531,9 @@ class _LiveCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(width: 7),
+                SizedBox(width: 7),
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 7),
+                  padding: EdgeInsets.only(bottom: 7),
                   child: Text(l.t('bpm')),
                 ),
               ],
@@ -545,19 +547,19 @@ class _LiveCard extends StatelessWidget {
                 ].join(' · '),
               ),
             if (service.isLiveHrActive && vitals?.heartRate == null) ...[
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 l.t('watch_waiting_data'),
                 style: t.textTheme.bodySmall?.copyWith(color: c.subtext),
               ),
             ],
-            const SizedBox(height: 13),
+            SizedBox(height: 13),
             SizedBox(
               width: double.infinity,
               child: service.isLiveHrActive
                   ? OutlinedButton.icon(
                       onPressed: () => service.stopLiveHeartRate(),
-                      icon: const Icon(Icons.stop_circle_outlined),
+                      icon: Icon(Icons.stop_circle_outlined),
                       label: Text(l.t('watch_stop_measurement')),
                     )
                   : FilledButton.icon(
@@ -575,7 +577,7 @@ class _LiveCard extends StatelessWidget {
                                 }
                               }
                             },
-                      icon: const Icon(Icons.favorite_outline),
+                      icon: Icon(Icons.favorite_outline),
                       label: Text(l.t('watch_start_measurement')),
                     ),
             ),
@@ -598,7 +600,7 @@ class _TechnicalDetails extends StatelessWidget {
     return Card(
       child: ExpansionTile(
         title: Text(l.t('watch_details')),
-        childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        childrenPadding: EdgeInsets.fromLTRB(16, 0, 16, 12),
         children: [
           _InfoRow(label: l.t('watch_device_name'), value: info.name),
           _InfoRow(label: 'MAC', value: info.mac),
@@ -630,7 +632,7 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
+    padding: EdgeInsets.only(bottom: 8),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

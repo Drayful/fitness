@@ -100,18 +100,18 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF171B21),
+        backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           l.t('workout_still_active'),
-          style: const TextStyle(
-            color: Color(0xFFF3F5F8),
+          style: TextStyle(
+            color: AppTheme.text,
             fontWeight: FontWeight.w700,
           ),
         ),
         content: Text(
           l.t('workout_inactive_msg').replaceFirst('%m', minutes),
-          style: const TextStyle(color: Color(0xFFC6CCD6), height: 1.4),
+          style: TextStyle(color: AppTheme.textSecondary, height: 1.4),
         ),
         actions: [
           TextButton(
@@ -139,7 +139,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             },
             child: Text(
               l.t('workout_end'),
-              style: const TextStyle(color: Color(0xFFFF5F5F)),
+              style: TextStyle(color: AppTheme.danger),
             ),
           ),
         ],
@@ -152,18 +152,18 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF171B21),
+        backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           l.t('workout_end_confirm'),
-          style: const TextStyle(
-            color: Color(0xFFF3F5F8),
+          style: TextStyle(
+            color: AppTheme.text,
             fontWeight: FontWeight.w700,
           ),
         ),
         content: Text(
           l.t('workout_end_confirm_sub'),
-          style: const TextStyle(color: Color(0xFFC6CCD6)),
+          style: TextStyle(color: AppTheme.textSecondary),
         ),
         actions: [
           TextButton(
@@ -177,7 +177,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(
               l.t('workout_end'),
-              style: const TextStyle(color: Color(0xFFFF5F5F)),
+              style: TextStyle(color: AppTheme.danger),
             ),
           ),
         ],
@@ -188,6 +188,8 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild on light/dark switches: AppTheme getters are not inherited.
+    AppTheme.watch(context);
     final band = BandServiceScope.of(context);
     return ListenableBuilder(
       listenable: band,
@@ -220,7 +222,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
             }
           },
           child: Scaffold(
-            backgroundColor: const Color(0xFF0D1014),
+            backgroundColor: AppTheme.bg,
             body: SafeArea(
               child: _starting
                   ? _buildStarting(l, accent)
@@ -244,16 +246,16 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(widget.type.icon, color: accent, size: 56),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Text(
             l.t('workout_starting'),
-            style: const TextStyle(
-              color: Color(0xFFC6CCD6),
+            style: TextStyle(
+              color: AppTheme.textSecondary,
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           SizedBox(
             width: 28,
             height: 28,
@@ -269,35 +271,35 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
 
   Widget _buildFailed(AppLocalizations l, Color accent) {
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, color: Color(0xFFFF5F5F), size: 56),
-          const SizedBox(height: 16),
+          Icon(Icons.error_outline, color: AppTheme.danger, size: 56),
+          SizedBox(height: 16),
           Text(
             l.t('workout_start_failed'),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFFC6CCD6),
+            style: TextStyle(
+              color: AppTheme.textSecondary,
               fontSize: 18,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             l.t('workout_start_failed_sub'),
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFF8B94A1), fontSize: 14),
+            style: TextStyle(color: AppTheme.subtext, fontSize: 14),
           ),
-          const SizedBox(height: 28),
+          SizedBox(height: 28),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(),
             style: FilledButton.styleFrom(backgroundColor: accent),
             child: Text(
               l.t('back'),
-              style: const TextStyle(
+              style: TextStyle(
                 color: Color(0xFF0D1014),
                 fontWeight: FontWeight.w700,
               ),
@@ -336,10 +338,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               children: [
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 // Hero metric: distance (for outdoor types) or duration
                 if (type.showDistance)
                   _HeroMetric(
@@ -357,10 +359,10 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     label: l.t('workout_duration'),
                     accent: accent,
                   ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 // 2×2 stats grid
                 _StatsGrid(live: live, type: type, l: l, accent: accent),
-                const SizedBox(height: 28),
+                SizedBox(height: 28),
                 // Pause / Resume
                 if (paused)
                   _ControlButton(
@@ -376,14 +378,14 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     color: accent,
                     onTap: () => band.pauseWorkout(),
                   ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 // End
                 _ControlButton(
                   icon: Icons.stop_rounded,
                   label: l.t('workout_end'),
-                  color: const Color(0xFF3A2020),
-                  textColor: const Color(0xFFFF5F5F),
-                  border: const Color(0xFF5C2626),
+                  color: AppTheme.danger.withValues(alpha: 0.12),
+                  textColor: AppTheme.danger,
+                  border: AppTheme.danger.withValues(alpha: 0.4),
                   onTap: () async {
                     final ok = await _confirmEnd(band);
                     if (ok && mounted) {
@@ -397,7 +399,7 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     }
                   },
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
               ],
             ),
           ),
@@ -423,11 +425,11 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          padding: EdgeInsets.fromLTRB(8, 8, 8, 0),
           child: Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.close, color: Color(0xFF8B94A1)),
+                icon: Icon(Icons.close, color: AppTheme.subtext),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ],
@@ -435,26 +437,26 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
         ),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 32),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 // App-06-Workout header: time window, status, sport.
                 if (s != null)
                   Text(
                     '${_clock(context, s.startTime)} — ${_clock(context, s.endTime)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       color: AppTheme.subtext,
                     ),
                   ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   l.t('workout_complete'),
                   style: AppTheme.numeric(fontSize: 26),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   _exerciseName(widget.type, l),
                   style: TextStyle(
@@ -463,33 +465,33 @@ class _WorkoutScreenState extends State<WorkoutScreen> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 if (s != null) ...[
                   _SummaryCard(summary: s, l: l, accent: accent),
                 ] else ...[
                   Text(
                     l.t('workout_no_data'),
-                    style: const TextStyle(
-                      color: Color(0xFF8B94A1),
+                    style: TextStyle(
+                      color: AppTheme.subtext,
                       fontSize: 14,
                     ),
                   ),
                 ],
-                const SizedBox(height: 32),
+                SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: FilledButton.styleFrom(
                       backgroundColor: accent,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
                     child: Text(
                       l.t('workout_done'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Color(0xFF0D1014),
                         fontWeight: FontWeight.w700,
                         fontSize: 16,
@@ -546,14 +548,14 @@ class _ActiveHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 16, 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF252C35))),
+      padding: EdgeInsets.fromLTRB(8, 8, 16, 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppTheme.outline)),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.close, color: Color(0xFF8B94A1), size: 22),
+            icon: Icon(Icons.close, color: AppTheme.subtext, size: 22),
             onPressed: onClose,
           ),
           Expanded(
@@ -561,11 +563,11 @@ class _ActiveHeader extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(type.icon, color: accent, size: 18),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Text(
                   _labelFor(type, l),
-                  style: const TextStyle(
-                    color: Color(0xFFC6CCD6),
+                  style: TextStyle(
+                    color: AppTheme.textSecondary,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                   ),
@@ -625,14 +627,14 @@ class _HeroMetric extends StatelessWidget {
               style: GoogleFonts.manrope(
                 fontSize: 72,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFFF3F5F8),
+                color: AppTheme.text,
                 height: 1,
               ),
             ),
             if (unit.isNotEmpty) ...[
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: EdgeInsets.only(bottom: 12),
                 child: Text(
                   unit,
                   style: GoogleFonts.manrope(
@@ -645,7 +647,7 @@ class _HeroMetric extends StatelessWidget {
             ],
           ],
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           label,
           style: TextStyle(
@@ -698,10 +700,10 @@ class _StatsGrid extends StatelessWidget {
                 unit: live?.heartRate != null ? l.t('bpm') : '',
                 label: l.t('heart_rate'),
                 icon: Icons.favorite_rounded,
-                color: const Color(0xFFFF5F9E),
+                color: Color(0xFFFF5F9E),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: _StatCell(
                 value: stepsStr,
@@ -713,7 +715,7 @@ class _StatsGrid extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Row(
           children: [
             Expanded(
@@ -722,10 +724,10 @@ class _StatsGrid extends StatelessWidget {
                 unit: l.t('kcal'),
                 label: l.t('workout_calories'),
                 icon: Icons.local_fire_department_rounded,
-                color: const Color(0xFFFFB23E),
+                color: Color(0xFFFFB23E),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             if (type.showDistance)
               Expanded(
                 child: _StatCell(
@@ -733,7 +735,7 @@ class _StatsGrid extends StatelessWidget {
                   unit: '/km',
                   label: l.t('workout_pace'),
                   icon: Icons.speed_rounded,
-                  color: const Color(0xFF9B8CFF),
+                  color: Color(0xFF9B8CFF),
                 ),
               )
             else
@@ -745,7 +747,7 @@ class _StatsGrid extends StatelessWidget {
                       ? l.t('workout_distance')
                       : l.t('workout_duration'),
                   icon: Icons.timer_rounded,
-                  color: const Color(0xFF36E0FF),
+                  color: Color(0xFF36E0FF),
                 ),
               ),
           ],
@@ -773,17 +775,17 @@ class _StatCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: const Color(0xFF171B21),
-        border: Border.all(color: const Color(0xFF2A313A)),
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: color, size: 18),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           RichText(
             text: TextSpan(
               children: [
@@ -792,7 +794,7 @@ class _StatCell extends StatelessWidget {
                   style: GoogleFonts.manrope(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF3F5F8),
+                    color: AppTheme.text,
                   ),
                 ),
                 if (unit.isNotEmpty)
@@ -807,11 +809,11 @@ class _StatCell extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF8B94A1),
+            style: TextStyle(
+              color: AppTheme.subtext,
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
@@ -841,12 +843,12 @@ class _ControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = textColor ?? const Color(0xFF0D1014);
+    final fg = textColor ?? Color(0xFF0D1014);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 18),
+        padding: EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           color: color,
@@ -856,7 +858,7 @@ class _ControlButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, color: fg, size: 22),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Text(
               label,
               style: TextStyle(
@@ -900,7 +902,7 @@ class _SummaryCard extends StatelessWidget {
         Row(
           children: [
             Expanded(child: _tile(l.t('workout_duration'), live.durationStr)),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: _tile(
                 l.t('workout_avg_hr'),
@@ -910,7 +912,7 @@ class _SummaryCard extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Row(
           children: [
             Expanded(
@@ -920,7 +922,7 @@ class _SummaryCard extends StatelessWidget {
                 unit: max == null ? null : l.t('bpm'),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: _tile(
                 l.t('workout_calories'),
@@ -930,13 +932,13 @@ class _SummaryCard extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         _card(
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(l.t('workout_hr_chart'), style: _overline),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               if (samples.length >= 2)
                 SizedBox(
                   height: 120,
@@ -948,14 +950,14 @@ class _SummaryCard extends StatelessWidget {
               else
                 Text(
                   l.t('workout_hr_chart_empty'),
-                  style: const TextStyle(fontSize: 13, color: AppTheme.subtext),
+                  style: TextStyle(fontSize: 13, color: AppTheme.subtext),
                 ),
             ],
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         Text(l.t('workout_details'), style: _overline),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         _card(
           Column(
             children: [
@@ -980,13 +982,13 @@ class _SummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         ),
       ],
     );
   }
 
-  static const _overline = TextStyle(
+  static TextStyle get _overline => TextStyle(
     fontSize: 11,
     fontWeight: FontWeight.w600,
     letterSpacing: 0.9,
@@ -1017,7 +1019,7 @@ class _SummaryCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: _overline,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text.rich(
             TextSpan(
               children: [
@@ -1025,7 +1027,7 @@ class _SummaryCard extends StatelessWidget {
                 if (unit != null)
                   TextSpan(
                     text: ' $unit',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.subtext,
@@ -1041,13 +1043,13 @@ class _SummaryCard extends StatelessWidget {
 
   Widget _row(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppTheme.textSecondary,
                 fontSize: 14,
               ),
@@ -1062,7 +1064,7 @@ class _SummaryCard extends StatelessWidget {
     );
   }
 
-  Widget _divider() => const Divider(height: 1);
+  Widget _divider() => Divider(height: 1);
 }
 
 /// Heart-rate line with a faint fill and min/max guides.

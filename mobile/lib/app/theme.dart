@@ -1,65 +1,213 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// YUMN design system tokens (dark theme), taken from the Claude Design
-/// canvas: Golos Text for UI, Manrope ExtraBold for headings and numbers,
-/// indigo as the single accent and teal for "good" values.
-class AppTheme {
-  static const bg = Color(0xFF0D1014);
-  static const surface = Color(0xFF171B21);
-  static const surfaceAlt = Color(0xFF12161B);
-  static const outline = Color(0xFF2A313A);
-  static const text = Color(0xFFF3F5F8);
-  static const textSecondary = Color(0xFFC6CCD6);
-  static const subtext = Color(0xFF8B94A1);
+/// YUMN design tokens for one brightness, taken from the Claude Design
+/// canvas (every screen there is drawn in a light and a dark variant).
+@immutable
+class YumnPalette {
+  const YumnPalette({
+    required this.brightness,
+    required this.bg,
+    required this.surface,
+    required this.surfaceAlt,
+    required this.outline,
+    required this.text,
+    required this.textSecondary,
+    required this.subtext,
+    required this.accent,
+    required this.onAccent,
+    required this.accentSoft,
+    required this.accentBorder,
+    required this.good,
+    required this.warn,
+    required this.warnEnd,
+    required this.danger,
+    required this.info,
+    required this.sleep,
+    required this.sleepEnd,
+    required this.phaseDeep,
+    required this.phaseRem,
+    required this.phaseLight,
+    required this.phaseAwake,
+  });
 
-  /// Primary accent: rings, links, active tab, primary buttons.
-  static const accent = Color(0xFF8E9AF2);
+  final Brightness brightness;
+  final Color bg;
+  final Color surface;
+  final Color surfaceAlt;
+  final Color outline;
+  final Color text;
+  final Color textSecondary;
+  final Color subtext;
 
-  /// Softer indigo for tinted cards (coach tips, banners).
-  static const accentSoft = Color(0xFF1C2136);
-  static const accentBorder = Color(0xFFAAB4F6);
+  /// Single accent: rings, links, active tab, primary buttons.
+  final Color accent;
+
+  /// Text and icons placed on [accent].
+  final Color onAccent;
+
+  /// Tinted cards (coach tips, banners) and their border.
+  final Color accentSoft;
+  final Color accentBorder;
 
   /// "Good" values: recovery, sleep score, low stress.
-  static const good = Color(0xFF34C0A4);
-  static const warn = Color(0xFFF2B84B);
-  static const warnEnd = Color(0xFFFF8A5B);
-  static const danger = Color(0xFFFF6B7A);
-  static const info = Color(0xFF6E9BFF);
-  static const sleep = Color(0xFF8E9AF2);
-  static const sleepEnd = Color(0xFFAAB4F6);
+  final Color good;
+  final Color warn;
+  final Color warnEnd;
+  final Color danger;
+  final Color info;
+  final Color sleep;
+  final Color sleepEnd;
+
+  /// Sleep phase strip (App-04-Sleep).
+  final Color phaseDeep;
+  final Color phaseRem;
+  final Color phaseLight;
+  final Color phaseAwake;
+
+  static const light = YumnPalette(
+    brightness: Brightness.light,
+    bg: Color(0xFFF5F7F9),
+    surface: Color(0xFFFFFFFF),
+    surfaceAlt: Color(0xFFECEFF3),
+    outline: Color(0xFFE1E6EB),
+    text: Color(0xFF101418),
+    textSecondary: Color(0xFF39424E),
+    subtext: Color(0xFF5F6874),
+    accent: Color(0xFF3D4FD1),
+    onAccent: Color(0xFFFFFFFF),
+    accentSoft: Color(0xFFEDEFFC),
+    accentBorder: Color(0xFFD9DEFA),
+    good: Color(0xFF00806E),
+    warn: Color(0xFFB7791F),
+    warnEnd: Color(0xFFC2410C),
+    danger: Color(0xFFD33A4A),
+    info: Color(0xFF2F6FDB),
+    sleep: Color(0xFF3D4FD1),
+    sleepEnd: Color(0xFF7C88E4),
+    phaseDeep: Color(0xFF3D4FD1),
+    phaseRem: Color(0xFF7C88E4),
+    phaseLight: Color(0xFFA9B2EE),
+    phaseAwake: Color(0xFFECEFF3),
+  );
+
+  static const dark = YumnPalette(
+    brightness: Brightness.dark,
+    bg: Color(0xFF0D1014),
+    surface: Color(0xFF171B21),
+    surfaceAlt: Color(0xFF12161B),
+    outline: Color(0xFF2A313A),
+    text: Color(0xFFF3F5F8),
+    textSecondary: Color(0xFFC6CCD6),
+    subtext: Color(0xFF8B94A1),
+    accent: Color(0xFF8E9AF2),
+    onAccent: Color(0xFF0D1014),
+    accentSoft: Color(0xFF1C2136),
+    accentBorder: Color(0xFFAAB4F6),
+    good: Color(0xFF34C0A4),
+    warn: Color(0xFFF2B84B),
+    warnEnd: Color(0xFFFF8A5B),
+    danger: Color(0xFFFF6B7A),
+    info: Color(0xFF6E9BFF),
+    sleep: Color(0xFF8E9AF2),
+    sleepEnd: Color(0xFFAAB4F6),
+    phaseDeep: Color(0xFF5D6CE6),
+    phaseRem: Color(0xFF8E9AF2),
+    phaseLight: Color(0xFFC3C9F7),
+    phaseAwake: Color(0xFF2A313A),
+  );
+}
+
+/// Theme factory plus shorthand access to the active palette.
+///
+/// `AppTheme.subtext` etc. read the palette of the theme currently applied
+/// by [MaterialApp]; [sync] is called from `MaterialApp.builder` whenever the
+/// theme changes. Widgets that use these getters must rebuild on theme
+/// changes — every screen calls [watch] (or reads `Theme.of`) for that.
+class AppTheme {
+  AppTheme._();
+
+  static YumnPalette _p = YumnPalette.dark;
+
+  static YumnPalette get palette => _p;
+
+  /// Called from `MaterialApp.builder` with the resolved theme brightness.
+  static void sync(Brightness brightness) {
+    _p = brightness == Brightness.light
+        ? YumnPalette.light
+        : YumnPalette.dark;
+  }
+
+  /// Registers a dependency on the theme so [context] rebuilds when the
+  /// user (or the system) switches between light and dark.
+  static YumnPalette watch(BuildContext context) {
+    Theme.of(context);
+    return _p;
+  }
+
+  static Color get bg => _p.bg;
+  static Color get surface => _p.surface;
+  static Color get surfaceAlt => _p.surfaceAlt;
+  static Color get outline => _p.outline;
+  static Color get text => _p.text;
+  static Color get textSecondary => _p.textSecondary;
+  static Color get subtext => _p.subtext;
+  static Color get accent => _p.accent;
+  static Color get onAccent => _p.onAccent;
+  static Color get accentSoft => _p.accentSoft;
+  static Color get accentBorder => _p.accentBorder;
+  static Color get good => _p.good;
+  static Color get warn => _p.warn;
+  static Color get warnEnd => _p.warnEnd;
+  static Color get danger => _p.danger;
+  static Color get info => _p.info;
+  static Color get sleep => _p.sleep;
+  static Color get sleepEnd => _p.sleepEnd;
 
   /// Big numbers and headings: Manrope ExtraBold with tight tracking.
+  /// Without [color] the text uses the palette's primary text colour.
   static TextStyle numeric({
     double fontSize = 21,
-    Color color = text,
+    Color? color,
     FontWeight fontWeight = FontWeight.w800,
   }) => GoogleFonts.manrope(
     fontSize: fontSize,
     fontWeight: fontWeight,
-    color: color,
+    color: color ?? _p.text,
     letterSpacing: -0.02 * fontSize,
   );
 
-  static ThemeData dark() {
-    final scheme = const ColorScheme.dark().copyWith(
-      primary: accent,
-      onPrimary: bg,
-      secondary: good,
-      onSecondary: bg,
-      error: danger,
-      surface: surface,
-      onSurface: text,
-      outline: outline,
+  static ThemeData light() => _build(YumnPalette.light);
+
+  static ThemeData dark() => _build(YumnPalette.dark);
+
+  static ThemeData _build(YumnPalette p) {
+    final isDark = p.brightness == Brightness.dark;
+    final baseScheme = isDark
+        ? const ColorScheme.dark()
+        : const ColorScheme.light();
+    final scheme = baseScheme.copyWith(
+      primary: p.accent,
+      onPrimary: p.onAccent,
+      secondary: p.good,
+      onSecondary: p.onAccent,
+      error: p.danger,
+      surface: p.surface,
+      onSurface: p.text,
+      outline: p.outline,
     );
 
+    final baseText = isDark
+        ? ThemeData.dark().textTheme
+        : ThemeData.light().textTheme;
     final base = ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
+      brightness: p.brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: bg,
-      textTheme: GoogleFonts.golosTextTextTheme(ThemeData.dark().textTheme)
-          .apply(bodyColor: text, displayColor: text),
+      scaffoldBackgroundColor: p.bg,
+      textTheme: GoogleFonts.golosTextTextTheme(
+        baseText,
+      ).apply(bodyColor: p.text, displayColor: p.text),
     );
 
     TextStyle? heading(
@@ -81,31 +229,32 @@ class AppTheme {
         ),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: bg,
-        foregroundColor: text,
+        backgroundColor: p.bg,
+        foregroundColor: p.text,
+        surfaceTintColor: Colors.transparent,
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,
         titleTextStyle: GoogleFonts.manrope(
           fontSize: 23,
           fontWeight: FontWeight.w800,
-          color: text,
+          color: p.text,
           letterSpacing: -0.46,
         ),
       ),
       cardTheme: CardThemeData(
-        color: surface,
+        color: p.surface,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: outline, width: 1),
+          side: BorderSide(color: p.outline, width: 1),
         ),
         margin: EdgeInsets.zero,
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: accent,
-          foregroundColor: bg,
+          backgroundColor: p.accent,
+          foregroundColor: p.onAccent,
           minimumSize: const Size(0, 50),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -118,9 +267,9 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: text,
+          foregroundColor: p.text,
           minimumSize: const Size(0, 50),
-          side: const BorderSide(color: outline),
+          side: BorderSide(color: p.outline),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -131,33 +280,54 @@ class AppTheme {
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: accent),
+        style: TextButton.styleFrom(foregroundColor: p.accent),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(color: accent),
-      dividerTheme: const DividerThemeData(color: outline, thickness: 1),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: p.surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: p.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: p.outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: p.accent, width: 1.5),
+        ),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: p.accent),
+      dividerTheme: DividerThemeData(color: p.outline, thickness: 1),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: p.text,
+        contentTextStyle: TextStyle(color: p.bg),
+        behavior: SnackBarBehavior.floating,
+      ),
       chipTheme: base.chipTheme.copyWith(
-        side: const BorderSide(color: outline),
-        backgroundColor: surfaceAlt,
-        selectedColor: accentSoft,
-        labelStyle: const TextStyle(color: text),
+        side: BorderSide(color: p.outline),
+        backgroundColor: p.surfaceAlt,
+        selectedColor: p.accentSoft,
+        labelStyle: TextStyle(color: p.text),
       ),
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: bg,
-        selectedItemColor: accent,
-        unselectedItemColor: subtext,
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: p.bg,
+        selectedItemColor: p.accent,
+        unselectedItemColor: p.subtext,
         type: BottomNavigationBarType.fixed,
       ),
-      extensions: const [
+      extensions: [
         AppColors(
-          accent: accent,
-          accent2: good,
-          warn: warn,
-          warnEnd: warnEnd,
-          danger: danger,
-          info: info,
-          sleep: sleep,
-          sleepEnd: sleepEnd,
-          subtext: subtext,
+          accent: p.accent,
+          accent2: p.good,
+          warn: p.warn,
+          warnEnd: p.warnEnd,
+          danger: p.danger,
+          info: p.info,
+          sleep: p.sleep,
+          sleepEnd: p.sleepEnd,
+          subtext: p.subtext,
         ),
       ],
     );
@@ -235,5 +405,6 @@ class AppColors extends ThemeExtension<AppColors> {
 }
 
 extension ThemeX on BuildContext {
+  /// Reading this also subscribes the widget to theme changes.
   AppColors get appColors => Theme.of(this).extension<AppColors>()!;
 }

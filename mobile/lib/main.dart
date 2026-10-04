@@ -8,6 +8,7 @@ import 'app/auth_gate.dart';
 import 'app/l10n/app_localizations.dart';
 import 'app/l10n/locale_controller.dart';
 import 'app/theme.dart';
+import 'app/theme_controller.dart';
 import 'band/v8_band_service.dart';
 
 Future<void> main() async {
@@ -28,6 +29,7 @@ class FitnessApp extends StatefulWidget {
 class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
   final _bandService = V8BandService();
   final _localeController = LocaleController();
+  final _themeController = ThemeController();
   final _session = SessionController();
   DateTime? _lastHeartRateUploadAt;
   String? _lastSleepUploadId;
@@ -40,6 +42,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     _bandService.addListener(_saveSleep);
     _session.addListener(_saveSleep);
     unawaited(_localeController.load());
+    unawaited(_themeController.load());
     _session.load();
     // Reconnect to last session's watch instead of making the user rescan.
     unawaited(_bandService.restoreLastDevice());
@@ -113,6 +116,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
     _session.removeListener(_saveSleep);
     _bandService.dispose();
     _localeController.dispose();
+    _themeController.dispose();
     _session.dispose();
     super.dispose();
   }
@@ -140,14 +144,22 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
         controller: _session,
         child: LocaleScope(
           controller: _localeController,
-          child: AnimatedBuilder(
-            animation: _localeController,
+          child: ThemeScope(
+            controller: _themeController,
+            child: AnimatedBuilder(
+            animation: Listenable.merge([_localeController, _themeController]),
             builder: (context, _) {
               return MaterialApp(
                 title: 'Fitness',
-                themeMode: ThemeMode.dark,
+                themeMode: _themeController.mode,
                 debugShowCheckedModeBanner: false,
-                darkTheme: AppTheme.dark(),
+                theme: _lightTheme,
+                darkTheme: _darkTheme,
+                // Point the AppTheme shorthands at the palette actually in use.
+                builder: (context, child) {
+                  AppTheme.sync(Theme.of(context).brightness);
+                  return child!;
+                },
                 locale: _localeController.locale,
                 supportedLocales: AppLocalizations.supportedLocales,
                 localizationsDelegates: const [
@@ -160,10 +172,15 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
               );
             },
           ),
+          ),
         ),
       ),
     );
   }
+
+  // Built once: ThemeData construction is not free and the palettes are const.
+  static final _lightTheme = AppTheme.light();
+  static final _darkTheme = AppTheme.dark();
 }
 
 class BandServiceScope extends InheritedWidget {

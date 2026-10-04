@@ -23,6 +23,8 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild on light/dark switches: AppTheme getters are not inherited.
+    AppTheme.watch(context);
     final band = BandServiceScope.of(context);
     return ListenableBuilder(
       listenable: band,
@@ -41,35 +43,35 @@ class DashboardScreen extends StatelessWidget {
               session.synchronize().catchError((_) {}),
           ]),
           child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+            physics: AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(20, 12, 20, 28),
             children: [
               _Header(name: session.userName, l: l),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               if (band.isSyncStale) ...[
                 _StaleSyncBanner(lastSync: band.lastSyncAt!, l: l),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
               ],
               if (connected)
                 _BandBanner(band: band, l: l)
               else
                 _NoBandCard(band: band, l: l),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               if (connected) ...[
                 Center(child: _StepsRing(steps: vitals?.steps, l: l)),
-                const SizedBox(height: 18),
+                SizedBox(height: 18),
               ],
               _MetricsGrid(band: band, l: l),
               if (session.averageHeartRate != null) ...[
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Text(
                   '${l.t('avg_last_10_hr')}: '
                   '${session.averageHeartRate!.toStringAsFixed(0)} '
                   '${l.t('bpm')} (${session.heartRateSampleCount}/10)',
-                  style: const TextStyle(color: AppTheme.subtext, fontSize: 12),
+                  style: TextStyle(color: AppTheme.subtext, fontSize: 12),
                 ),
               ],
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               _CalibrationCard(band: band, l: l),
             ],
           ),
@@ -109,7 +111,7 @@ class _StaleSyncBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final days = DateTime.now().difference(lastSync).inDays;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         color: AppTheme.warn.withValues(alpha: 0.12),
@@ -118,16 +120,16 @@ class _StaleSyncBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.warning_amber_rounded,
             size: 18,
             color: AppTheme.warn,
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Text(
               _fill(l.t('home_sync_stale'), {'d': days}),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 height: 1.4,
                 color: AppTheme.text,
@@ -164,9 +166,9 @@ class _Header extends StatelessWidget {
       children: [
         Text(
           MaterialLocalizations.of(context).formatFullDate(now),
-          style: const TextStyle(fontSize: 13, color: AppTheme.subtext),
+          style: TextStyle(fontSize: 13, color: AppTheme.subtext),
         ),
-        const SizedBox(height: 2),
+        SizedBox(height: 2),
         Text(
           firstName == null || firstName.isEmpty
               ? greeting
@@ -200,7 +202,7 @@ class _BandBanner extends StatelessWidget {
     ];
     final lowBattery = battery != null && battery < 20;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+      padding: EdgeInsets.symmetric(horizontal: 15, vertical: 13),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         color: AppTheme.accentSoft,
@@ -213,7 +215,7 @@ class _BandBanner extends StatelessWidget {
             size: 18,
             color: lowBattery ? AppTheme.danger : AppTheme.accent,
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,17 +224,17 @@ class _BandBanner extends StatelessWidget {
                   band.deviceInfo?.name ?? l.t('home_band_title'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: AppTheme.text,
                   ),
                 ),
                 if (parts.isNotEmpty) ...[
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     parts.join(' · '),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppTheme.subtext,
                     ),
@@ -245,7 +247,7 @@ class _BandBanner extends StatelessWidget {
             Container(
               width: 8,
               height: 8,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: AppTheme.good,
               ),
@@ -270,7 +272,7 @@ class _NoBandCard extends StatelessWidget {
         band.state == BandConnectionState.connecting;
     final remembered = band.hasRememberedDevice;
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         color: AppTheme.surface,
@@ -284,22 +286,22 @@ class _NoBandCard extends StatelessWidget {
               Container(
                 width: 40,
                 height: 40,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppTheme.surfaceAlt,
                 ),
                 child: reconnecting
-                    ? const Padding(
+                    ? Padding(
                         padding: EdgeInsets.all(11),
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(
+                    : Icon(
                         Icons.watch_outlined,
                         size: 20,
                         color: AppTheme.subtext,
                       ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Text(
                   reconnecting
@@ -311,28 +313,28 @@ class _NoBandCard extends StatelessWidget {
             ],
           ),
           if (band.lastSyncAt != null) ...[
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Text(
               _fill(l.t('home_last_sync'), {
                 'when': _fmtWhen(context, band.lastSyncAt!),
               }),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: AppTheme.text,
               ),
             ),
           ],
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text(
             remembered ? l.t('home_noband_sub') : l.t('home_noband_none_sub'),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13.5,
               height: 1.4,
               color: AppTheme.textSecondary,
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             child: FilledButton(
@@ -362,7 +364,7 @@ class _StepsRing extends StatelessWidget {
     return RingGauge(
       value: (steps ?? 0).toDouble(),
       max: DashboardScreen.stepGoal.toDouble(),
-      colors: const [AppTheme.accent, AppTheme.accentBorder],
+      colors: [AppTheme.accent, AppTheme.accentBorder],
       size: 168,
       strokeWidth: 14,
       center: Column(
@@ -372,10 +374,10 @@ class _StepsRing extends StatelessWidget {
             steps == null ? '—' : fmt.formatDecimal(steps!),
             style: AppTheme.numeric(fontSize: steps == null ? 40 : 30),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             l.t('steps'),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 1.2,
@@ -386,7 +388,7 @@ class _StepsRing extends StatelessWidget {
             _fill(l.t('home_steps_goal'), {
               'goal': fmt.formatDecimal(DashboardScreen.stepGoal),
             }),
-            style: const TextStyle(fontSize: 11, color: AppTheme.subtext),
+            style: TextStyle(fontSize: 11, color: AppTheme.subtext),
           ),
         ],
       ),
@@ -436,7 +438,7 @@ class _MetricsGrid extends StatelessWidget {
         color: AppTheme.good,
         busy: band.isSleepSyncing,
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const SleepScreen()),
+          MaterialPageRoute<void>(builder: (_) => SleepScreen()),
         ),
       ),
       _Tile(
@@ -452,15 +454,15 @@ class _MetricsGrid extends StatelessWidget {
         Row(
           children: [
             Expanded(child: tiles[0]),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(child: tiles[1]),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Row(
           children: [
             Expanded(child: tiles[2]),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(child: tiles[3]),
           ],
         ),
@@ -492,13 +494,13 @@ class _Tile extends StatelessWidget {
       color: AppTheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppTheme.outline),
+        side: BorderSide(color: AppTheme.outline),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(15, 14, 15, 16),
+          padding: EdgeInsets.fromLTRB(15, 14, 15, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -509,7 +511,7 @@ class _Tile extends StatelessWidget {
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.9,
@@ -518,20 +520,20 @@ class _Tile extends StatelessWidget {
                     ),
                   ),
                   if (busy)
-                    const SizedBox(
+                    SizedBox(
                       width: 12,
                       height: 12,
                       child: CircularProgressIndicator(strokeWidth: 1.6),
                     )
                   else if (onTap != null)
-                    const Icon(
+                    Icon(
                       Icons.chevron_right,
                       size: 16,
                       color: AppTheme.subtext,
                     ),
                 ],
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Text.rich(
                 TextSpan(
                   children: [
@@ -545,7 +547,7 @@ class _Tile extends StatelessWidget {
                     if (value != null && unit != null)
                       TextSpan(
                         text: ' $unit',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: AppTheme.subtext,
@@ -581,7 +583,7 @@ class _CalibrationCard extends StatelessWidget {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(18),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         color: AppTheme.surface,
@@ -591,29 +593,29 @@ class _CalibrationCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(l.t('calib_title'), style: AppTheme.numeric(fontSize: 17)),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             l.t('calib_sub'),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               height: 1.4,
               color: AppTheme.textSecondary,
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Text(
             l.t('calib_collected'),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.9,
               color: AppTheme.subtext,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           for (final (label, ok) in rows)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
+              padding: EdgeInsets.symmetric(vertical: 6),
               child: Row(
                 children: [
                   Icon(
@@ -621,11 +623,11 @@ class _CalibrationCard extends StatelessWidget {
                     size: 18,
                     color: ok ? AppTheme.good : AppTheme.outline,
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       label,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         color: AppTheme.text,
                       ),
@@ -634,7 +636,7 @@ class _CalibrationCard extends StatelessWidget {
                   if (!ok)
                     Text(
                       l.t('calib_collecting'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppTheme.subtext,
                       ),
@@ -642,9 +644,9 @@ class _CalibrationCard extends StatelessWidget {
                 ],
               ),
             ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Container(
-            padding: const EdgeInsets.all(13),
+            padding: EdgeInsets.all(13),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               color: AppTheme.accentSoft,
@@ -654,17 +656,17 @@ class _CalibrationCard extends StatelessWidget {
               children: [
                 Text(
                   l.t('calib_why_title'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.9,
                     color: AppTheme.accent,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   l.t('calib_why'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     height: 1.4,
                     color: AppTheme.textSecondary,

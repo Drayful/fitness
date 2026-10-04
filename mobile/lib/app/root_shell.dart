@@ -31,6 +31,8 @@ class _RootShellState extends State<RootShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild on light/dark switches: AppTheme getters are not inherited.
+    AppTheme.watch(context);
     final l = AppLocalizations.of(context);
     return Scaffold(
       body: SafeArea(bottom: false, child: _tabs[_idx]),
@@ -73,8 +75,8 @@ class _NavBar extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-        decoration: const BoxDecoration(
+        padding: EdgeInsets.fromLTRB(8, 8, 8, 10),
+        decoration: BoxDecoration(
           color: AppTheme.bg,
           border: Border(top: BorderSide(color: AppTheme.outline)),
         ),
@@ -87,12 +89,12 @@ class _NavBar extends StatelessWidget {
                 onTap: () => onTap(i),
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  padding: EdgeInsets.symmetric(vertical: 4),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(_icons[i], size: 22, color: color),
-                      const SizedBox(height: 5),
+                      SizedBox(height: 5),
                       Text(
                         labels[i],
                         maxLines: 1,

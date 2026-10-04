@@ -6,6 +6,7 @@ import '../../main.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/locale_controller.dart';
 import '../theme.dart';
+import '../theme_controller.dart';
 import 'band_connect_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -27,18 +28,18 @@ class ProfileScreen extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF171B21),
+        backgroundColor: AppTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           l.t('logout_confirm'),
-          style: const TextStyle(
-            color: Color(0xFFF3F5F8),
+          style: TextStyle(
+            color: AppTheme.text,
             fontWeight: FontWeight.w700,
           ),
         ),
         content: Text(
           l.t('logout_confirm_sub'),
-          style: const TextStyle(color: Color(0xFFC6CCD6)),
+          style: TextStyle(color: AppTheme.textSecondary),
         ),
         actions: [
           TextButton(
@@ -72,27 +73,99 @@ class ProfileScreen extends StatelessWidget {
         .toUpperCase();
   }
 
-  void _chooseLanguage(BuildContext context) {
+  static String _themeLabel(AppLocalizations l, ThemeMode mode) =>
+      switch (mode) {
+        ThemeMode.system => l.t('theme_system'),
+        ThemeMode.light => l.t('theme_light'),
+        ThemeMode.dark => l.t('theme_dark'),
+      };
+
+  /// Light / dark / system, as on the design's Onb-03-Theme screen.
+  void _chooseTheme(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final controller = LocaleScope.of(context);
-    final current = controller.locale.languageCode;
+    final controller = ThemeScope.of(context);
+    final current = controller.mode;
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF171B21),
-      shape: const RoundedRectangleBorder(
+      backgroundColor: AppTheme.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetCtx) {
         final c = sheetCtx.appColors;
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 14, 8, 14),
+            padding: EdgeInsets.fromLTRB(8, 14, 8, 14),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  padding: EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: Text(
+                    l.t('choose_theme'),
+                    style: GoogleFonts.manrope(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                for (final (mode, icon) in const [
+                  (ThemeMode.system, Icons.brightness_auto_outlined),
+                  (ThemeMode.light, Icons.light_mode_outlined),
+                  (ThemeMode.dark, Icons.dark_mode_outlined),
+                ])
+                  ListTile(
+                    leading: Icon(
+                      icon,
+                      color: mode == current ? c.accent : c.subtext,
+                    ),
+                    title: Text(
+                      _themeLabel(l, mode),
+                      style: TextStyle(
+                        fontWeight: mode == current
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        color: mode == current ? c.accent : AppTheme.text,
+                      ),
+                    ),
+                    trailing: mode == current
+                        ? Icon(Icons.check, color: c.accent)
+                        : null,
+                    onTap: () {
+                      controller.setMode(mode);
+                      Navigator.of(sheetCtx).pop();
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _chooseLanguage(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    final controller = LocaleScope.of(context);
+    final current = controller.locale.languageCode;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetCtx) {
+        final c = sheetCtx.appColors;
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(8, 14, 8, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(12, 0, 12, 8),
                   child: Text(
                     l.t('choose_language'),
                     style: GoogleFonts.manrope(
@@ -111,7 +184,7 @@ class ProfileScreen extends StatelessWidget {
                         fontWeight: selected
                             ? FontWeight.w700
                             : FontWeight.w500,
-                        color: selected ? c.accent : const Color(0xFFF3F5F8),
+                        color: selected ? c.accent : AppTheme.text,
                       ),
                     ),
                     trailing: selected
@@ -133,6 +206,8 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild on light/dark switches: AppTheme getters are not inherited.
+    AppTheme.watch(context);
     final l = AppLocalizations.of(context);
     final c = context.appColors;
     final band = BandServiceScope.of(context);
@@ -146,18 +221,18 @@ class ProfileScreen extends StatelessWidget {
         final firmware = band.deviceInfo?.firmware;
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
+          padding: EdgeInsets.fromLTRB(18, 14, 18, 24),
           children: [
             Text(
               l.t('profile'),
               style: GoogleFonts.manrope(
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFFF3F5F8),
+                color: AppTheme.text,
                 letterSpacing: -0.5,
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
 
             // Profile card
             _card(
@@ -180,11 +255,11 @@ class ProfileScreen extends StatelessWidget {
                       style: GoogleFonts.manrope(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFF0D1014),
+                        color: AppTheme.onAccent,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,10 +269,10 @@ class ProfileScreen extends StatelessWidget {
                           style: GoogleFonts.manrope(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFFF3F5F8),
+                            color: AppTheme.text,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           session.userEmail ?? '—',
                           style: TextStyle(color: c.subtext, fontSize: 13),
@@ -208,18 +283,18 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
 
             // V8 band card
             Container(
-              padding: const EdgeInsets.all(18),
+              padding: EdgeInsets.all(18),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: const Color(0xFF2A313A)),
-                gradient: const LinearGradient(
+                border: Border.all(color: AppTheme.outline),
+                gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF171B21), Color(0xFF171B21)],
+                  colors: [AppTheme.surface, AppTheme.surface],
                 ),
               ),
               child: Column(
@@ -236,20 +311,20 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         child: Icon(Icons.watch_outlined, color: c.accent),
                       ),
-                      const SizedBox(width: 13),
+                      SizedBox(width: 13),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               band.deviceInfo?.name ?? l.t('bracelet'),
-                              style: const TextStyle(
-                                color: Color(0xFFF3F5F8),
+                              style: TextStyle(
+                                color: AppTheme.text,
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const SizedBox(height: 3),
+                            SizedBox(height: 3),
                             Row(
                               children: [
                                 Container(
@@ -260,7 +335,7 @@ class ProfileScreen extends StatelessWidget {
                                     color: connected ? c.accent : c.subtext,
                                   ),
                                 ),
-                                const SizedBox(width: 6),
+                                SizedBox(width: 6),
                                 Flexible(
                                   child: Text(
                                     connected
@@ -293,7 +368,7 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 15),
+                  SizedBox(height: 15),
                   Row(
                     children: [
                       Expanded(
@@ -304,13 +379,13 @@ class ProfileScreen extends StatelessWidget {
                           c.accent,
                         ),
                       ),
-                      const SizedBox(width: 11),
+                      SizedBox(width: 11),
                       Expanded(
                         child: _bandStat(
                           c,
                           l.t('firmware'),
                           firmware ?? '—',
-                          const Color(0xFFF3F5F8),
+                          AppTheme.text,
                         ),
                       ),
                     ],
@@ -318,14 +393,14 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
 
             // Settings list
             Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(22),
-                color: const Color(0xFF171B21),
-                border: Border.all(color: const Color(0xFF2A313A)),
+                color: AppTheme.surface,
+                border: Border.all(color: AppTheme.outline),
               ),
               child: Column(
                 children: [
@@ -367,14 +442,27 @@ class ProfileScreen extends StatelessWidget {
                         '',
                     onTap: () => _chooseLanguage(context),
                   ),
+                  _divider(),
+                  _settingRow(
+                    c,
+                    Icons.contrast,
+                    c.accent,
+                    l.t('theme'),
+                    l.t('theme_sub'),
+                    trailingText: _themeLabel(
+                      l,
+                      ThemeScope.of(context).mode,
+                    ),
+                    onTap: () => _chooseTheme(context),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 22),
+            SizedBox(height: 22),
 
             // Account section
             Padding(
-              padding: const EdgeInsets.only(left: 4, bottom: 8),
+              padding: EdgeInsets.only(left: 4, bottom: 8),
               child: Text(
                 l.t('account'),
                 style: TextStyle(
@@ -388,8 +476,8 @@ class ProfileScreen extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(22),
-                color: const Color(0xFF171B21),
-                border: Border.all(color: const Color(0xFF2A313A)),
+                color: AppTheme.surface,
+                border: Border.all(color: AppTheme.outline),
               ),
               child: _settingRow(
                 c,
@@ -407,26 +495,26 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _card({required Widget child}) => Container(
-    padding: const EdgeInsets.all(18),
+    padding: EdgeInsets.all(18),
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(22),
-      color: const Color(0xFF171B21),
-      border: Border.all(color: const Color(0xFF2A313A)),
+      color: AppTheme.surface,
+      border: Border.all(color: AppTheme.outline),
     ),
     child: child,
   );
 
-  Widget _divider() => const Padding(
+  Widget _divider() => Padding(
     padding: EdgeInsets.symmetric(horizontal: 16),
-    child: Divider(height: 1, color: Color(0xFF2A313A)),
+    child: Divider(height: 1, color: AppTheme.outline),
   );
 
   Widget _bandStat(AppColors c, String label, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+      padding: EdgeInsets.symmetric(horizontal: 13, vertical: 11),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: const Color(0xFF12161B),
+        color: AppTheme.surfaceAlt,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -439,7 +527,7 @@ class ProfileScreen extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             value,
             style: GoogleFonts.manrope(
@@ -465,7 +553,7 @@ class ProfileScreen extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         child: Row(
           children: [
             Container(
@@ -474,24 +562,24 @@ class ProfileScreen extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(11),
-                color: const Color(0xFF252C35),
+                color: AppTheme.outline,
               ),
               child: Icon(icon, color: iconColor, size: 19),
             ),
-            const SizedBox(width: 13),
+            SizedBox(width: 13),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
-                      color: Color(0xFFF3F5F8),
+                    style: TextStyle(
+                      color: AppTheme.text,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 1),
+                  SizedBox(height: 1),
                   Text(
                     subtitle,
                     style: TextStyle(color: c.subtext, fontSize: 11.5),
@@ -508,7 +596,7 @@ class ProfileScreen extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 7),
+              SizedBox(width: 7),
             ],
             if (onTap != null)
               Icon(Icons.chevron_right, color: c.subtext, size: 18),

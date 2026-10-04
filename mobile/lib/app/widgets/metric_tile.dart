@@ -24,11 +24,11 @@ class MetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.appColors;
     return Container(
-      padding: const EdgeInsets.all(13),
+      padding: EdgeInsets.all(13),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: const Color(0xFF171B21),
-        border: Border.all(color: const Color(0xFF2A313A)),
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -36,7 +36,7 @@ class MetricTile extends StatelessWidget {
           Row(
             children: [
               Icon(icon, size: 14, color: color),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Flexible(
                 child: Text(
                   label,
@@ -52,7 +52,7 @@ class MetricTile extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text.rich(
             TextSpan(
               children: [
@@ -61,7 +61,7 @@ class MetricTile extends StatelessWidget {
                   style: GoogleFonts.manrope(
                     fontSize: 21,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF3F5F8),
+                    color: AppTheme.text,
                   ),
                 ),
                 if (unit != null)

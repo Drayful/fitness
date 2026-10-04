@@ -78,17 +78,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild on light/dark switches: AppTheme getters are not inherited.
+    AppTheme.watch(context);
     final l = AppLocalizations.of(context);
     final c = context.appColors;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1014),
+      backgroundColor: AppTheme.bg,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
+              constraints: BoxConstraints(maxWidth: 420),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -106,10 +108,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           colors: [c.accent, c.accent2],
                         ),
                       ),
-                      child: const Icon(Icons.bolt,
-                          color: Color(0xFF0D1014), size: 34),
+                      child: Icon(Icons.bolt,
+                          color: AppTheme.onAccent, size: 34),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     Text(
                       _register
                           ? l.t('auth_register_title')
@@ -117,15 +119,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: GoogleFonts.manrope(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFFF3F5F8),
+                        color: AppTheme.text,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Text(
                       l.t('auth_welcome'),
                       style: TextStyle(color: c.subtext, fontSize: 14),
                     ),
-                    const SizedBox(height: 28),
+                    SizedBox(height: 28),
                     if (_register) ...[
                       _field(
                         controller: _name,
@@ -137,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ? l.t('auth_field_required')
                             : null,
                       ),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                     ],
                     _field(
                       controller: _email,
@@ -155,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     _field(
                       controller: _password,
                       label: l.t('auth_password'),
@@ -173,9 +175,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
                     if (_error != null) ...[
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       Container(
-                        padding: const EdgeInsets.symmetric(
+                        padding: EdgeInsets.symmetric(
                             horizontal: 14, vertical: 12),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(14),
@@ -186,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Row(
                           children: [
                             Icon(Icons.error_outline, color: c.danger, size: 18),
-                            const SizedBox(width: 10),
+                            SizedBox(width: 10),
                             Expanded(
                               child: Text(_error!,
                                   style: TextStyle(
@@ -196,38 +198,38 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24),
                     FilledButton(
                       onPressed: _busy ? null : _submit,
                       style: FilledButton.styleFrom(
                         backgroundColor: c.accent,
                         disabledBackgroundColor:
                             c.accent.withValues(alpha: 0.4),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16)),
                       ),
                       child: _busy
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 22,
                               height: 22,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2.5,
                                 valueColor: AlwaysStoppedAnimation(
-                                    Color(0xFF0D1014)),
+                                    AppTheme.onAccent),
                               ),
                             )
                           : Text(
                               _register
                                   ? l.t('auth_register_btn')
                                   : l.t('auth_login_btn'),
-                              style: const TextStyle(
-                                  color: Color(0xFF0D1014),
+                              style: TextStyle(
+                                  color: AppTheme.onAccent,
                                   fontWeight: FontWeight.w700,
                                   fontSize: 16),
                             ),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     TextButton(
                       onPressed: _busy
                           ? null
@@ -266,7 +268,7 @@ class _LoginScreenState extends State<LoginScreen> {
       controller: controller,
       obscureText: obscure,
       keyboardType: keyboardType,
-      style: const TextStyle(color: Color(0xFFF3F5F8)),
+      style: TextStyle(color: AppTheme.text),
       cursorColor: c.accent,
       decoration: InputDecoration(
         labelText: label,
@@ -274,10 +276,10 @@ class _LoginScreenState extends State<LoginScreen> {
         errorText: serverError,
         prefixIcon: Icon(icon, color: c.subtext, size: 20),
         filled: true,
-        fillColor: const Color(0xFF171B21),
+        fillColor: AppTheme.surface,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFF2A313A)),
+          borderSide: BorderSide(color: AppTheme.outline),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

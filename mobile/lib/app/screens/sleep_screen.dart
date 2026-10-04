@@ -28,10 +28,10 @@ const _needMinutes = 8 * 60;
 /// Saved nights needed before showing a norm or advice.
 const _minNightsForAdvice = 3;
 
-const _deepColor = Color(0xFF5D6CE6);
-const _remColor = Color(0xFF8E9AF2);
-const _lightColor = Color(0xFFC3C9F7);
-const _awakeColor = AppTheme.outline;
+Color get _deepColor => AppTheme.palette.phaseDeep;
+Color get _remColor => AppTheme.palette.phaseRem;
+Color get _lightColor => AppTheme.palette.phaseLight;
+Color get _awakeColor => AppTheme.palette.phaseAwake;
 
 class _SleepScreenState extends State<SleepScreen> {
   @override
@@ -50,6 +50,8 @@ class _SleepScreenState extends State<SleepScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild on light/dark switches: AppTheme getters are not inherited.
+    AppTheme.watch(context);
     final band = BandServiceScope.of(context);
     final session = SessionScope.of(context);
     return ListenableBuilder(
@@ -71,7 +73,7 @@ class _SleepScreenState extends State<SleepScreen> {
             leading: widget.embedded
                 ? null
                 : IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.chevron_left,
                       color: AppTheme.subtext,
                       size: 28,
@@ -82,9 +84,9 @@ class _SleepScreenState extends State<SleepScreen> {
             actions: [
               if (band.isConnected)
                 Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: EdgeInsets.only(right: 8),
                   child: band.isSleepSyncing
-                      ? const Center(
+                      ? Center(
                           child: SizedBox(
                             width: 20,
                             height: 20,
@@ -92,7 +94,7 @@ class _SleepScreenState extends State<SleepScreen> {
                           ),
                         )
                       : IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.sync,
                             color: AppTheme.subtext,
                             size: 22,
@@ -118,19 +120,19 @@ class _SleepScreenState extends State<SleepScreen> {
                     l: l,
                   )
                 : ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+                    physics: AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(20, 4, 20, 32),
                     children: [
                       _NightHeader(night: night, saved: saved, l: l),
-                      const SizedBox(height: 18),
+                      SizedBox(height: 18),
                       if (night.summary != null &&
                           night.summary!.hasValidatedStages) ...[
                         _PhaseStrip(summary: night.summary!, l: l),
-                        const SizedBox(height: 14),
+                        SizedBox(height: 14),
                         _StageTiles(summary: night.summary!, l: l),
                       ] else
                         _InfoNote(text: l.t('sleep_stages_note')),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                       _CoachCard(saved: saved, l: l),
                       ...() {
                         // Earlier nights only: drop the one shown above.
@@ -143,9 +145,9 @@ class _SleepScreenState extends State<SleepScreen> {
                             .take(7)
                             .toList();
                         return history.isEmpty
-                            ? const <Widget>[]
+                            ? <Widget>[]
                             : [
-                                const SizedBox(height: 22),
+                                SizedBox(height: 22),
                                 _History(nights: history, l: l),
                               ];
                       }(),
@@ -250,7 +252,7 @@ String _fmtClockMinutes(BuildContext context, int minuteOfDay) {
   );
 }
 
-const _overline = TextStyle(
+TextStyle get _overline => TextStyle(
   fontSize: 11,
   fontWeight: FontWeight.w600,
   letterSpacing: 0.9,
@@ -311,7 +313,7 @@ class _NightHeader extends StatelessWidget {
                         color: AppTheme.good,
                       ),
                     ),
-                    const TextSpan(
+                    TextSpan(
                       text: ' / 100',
                       style: TextStyle(
                         fontSize: 12,
@@ -326,19 +328,19 @@ class _NightHeader extends StatelessWidget {
               _Chip(text: l.t('sleep_stages_chip'), color: AppTheme.subtext),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Text(
           _fmtDur(l, night.asleepMinutes),
           style: AppTheme.numeric(fontSize: 34),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           '${_fmtClock(context, night.start)} — ${_fmtClock(context, night.end)}'
           ' · ${l.t('sleep_in_bed').replaceAll('{d}', _fmtDur(l, night.inBedMinutes))}',
-          style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+          style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
         ),
         if (delta != null) ...[
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           _Chip(
             text: l
                 .t(delta >= 0 ? 'sleep_vs_norm_more' : 'sleep_vs_norm_less')
@@ -360,7 +362,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
         color: color.withValues(alpha: 0.12),
@@ -407,7 +409,7 @@ class _PhaseStrip extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Wrap(
             spacing: 14,
             runSpacing: 6,
@@ -424,10 +426,10 @@ class _PhaseStrip extends StatelessWidget {
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Text(
                       label,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppTheme.textSecondary,
                       ),
@@ -493,7 +495,7 @@ class _StageTiles extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: _overline,
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text.rich(
               TextSpan(
                 children: [
@@ -504,7 +506,7 @@ class _StageTiles extends StatelessWidget {
                   if (unit != null)
                     TextSpan(
                       text: ' $unit',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppTheme.subtext,
                       ),
@@ -520,9 +522,9 @@ class _StageTiles extends StatelessWidget {
     return Row(
       children: [
         tile(l.t('deep_sleep'), _fmtHm(summary.deepMinutes)),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         tile(l.t('rem_sleep'), _fmtHm(summary.remMinutes)),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         tile(
           l.t('sleep_efficiency'),
           summary.efficiencyStr.replaceAll('%', ''),
@@ -545,7 +547,7 @@ class _CoachCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+    final weekAgo = DateTime.now().subtract(Duration(days: 7));
     final week = saved.where((n) => n.end.isAfter(weekAgo)).toList();
 
     String body;
@@ -568,7 +570,7 @@ class _CoachCard extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: AppTheme.accentSoft,
@@ -579,15 +581,15 @@ class _CoachCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.auto_awesome_outlined,
                 size: 15,
                 color: AppTheme.accent,
               ),
-              const SizedBox(width: 7),
+              SizedBox(width: 7),
               Text(
                 l.t('sleep_coach_title'),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.9,
@@ -596,20 +598,20 @@ class _CoachCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             body,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               height: 1.45,
               color: AppTheme.text,
             ),
           ),
           if (week.length >= _minNightsForAdvice) ...[
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               l.t('sleep_coach_basis'),
-              style: const TextStyle(fontSize: 12, color: AppTheme.subtext),
+              style: TextStyle(fontSize: 12, color: AppTheme.subtext),
             ),
           ],
         ],
@@ -633,21 +635,21 @@ class _History extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(l.t('sleep_history'), style: _overline),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         _Card(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: Column(
             children: [
               for (var i = 0; i < nights.length; i++) ...[
-                if (i > 0) const Divider(height: 1),
+                if (i > 0) Divider(height: 1),
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: EdgeInsets.symmetric(vertical: 12),
                   child: Row(
                     children: [
                       Expanded(
                         child: Text(
                           fmt.formatMediumDate(nights[i].end),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             color: AppTheme.text,
                           ),
@@ -711,12 +713,12 @@ class _InfoNote extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, size: 18, color: AppTheme.subtext),
-          const SizedBox(width: 10),
+          Icon(Icons.info_outline, size: 18, color: AppTheme.subtext),
+          SizedBox(width: 10),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 height: 1.4,
                 color: AppTheme.textSecondary,
@@ -748,15 +750,15 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     // A ListView so pull-to-refresh works on the empty state too.
     return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(32, 96, 32, 32),
+      physics: AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(32, 96, 32, 32),
       children: [
         Icon(
           error ? Icons.error_outline : Icons.bedtime_outlined,
           size: 56,
           color: error ? AppTheme.danger : AppTheme.accent,
         ),
-        const SizedBox(height: 18),
+        SizedBox(height: 18),
         Text(
           syncing
               ? l.t('syncing')
@@ -766,7 +768,7 @@ class _EmptyState extends StatelessWidget {
           textAlign: TextAlign.center,
           style: AppTheme.numeric(fontSize: 20),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Text(
           syncing
               ? l.t('syncing_sub')
@@ -774,14 +776,14 @@ class _EmptyState extends StatelessWidget {
               ? l.t('no_sleep_sub_connected')
               : l.t('no_sleep_sub'),
           textAlign: TextAlign.center,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppTheme.subtext,
             fontSize: 14,
             height: 1.5,
           ),
         ),
         if (error && onRetry != null) ...[
-          const SizedBox(height: 18),
+          SizedBox(height: 18),
           Center(
             child: OutlinedButton(
               onPressed: onRetry,

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'theme.dart';
+
 import '../api/session_controller.dart';
 import 'root_shell.dart';
 import 'screens/login_screen.dart';
@@ -13,15 +15,17 @@ class AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild on light/dark switches: AppTheme getters are not inherited.
+    AppTheme.watch(context);
     final session = SessionScope.of(context);
 
     if (session.bootstrapping) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0D1014),
+      return Scaffold(
+        backgroundColor: AppTheme.bg,
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    return session.isAuthenticated ? const RootShell() : const LoginScreen();
+    return session.isAuthenticated ? RootShell() : LoginScreen();
   }
 }

@@ -13,6 +13,8 @@ class TrainingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Rebuild on light/dark switches: AppTheme getters are not inherited.
+    AppTheme.watch(context);
     final band = BandServiceScope.of(context);
     final session = SessionScope.of(context);
     return ListenableBuilder(
@@ -22,22 +24,22 @@ class TrainingScreen extends StatelessWidget {
         final c = context.appColors;
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
+          padding: EdgeInsets.fromLTRB(18, 14, 18, 24),
           children: [
             Text(
               l.t('training'),
               style: GoogleFonts.manrope(
                 fontSize: 26,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFFF3F5F8),
+                color: AppTheme.text,
                 letterSpacing: -0.5,
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
 
             // Quick start tiles
             _sectionLabel(c, l.t('quick_start')),
-            const SizedBox(height: 11),
+            SizedBox(height: 11),
             Row(
               children: [
                 _quickTile(
@@ -49,7 +51,7 @@ class TrainingScreen extends StatelessWidget {
                       ? () => _startWorkout(context, ExerciseType.run)
                       : null,
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 _quickTile(
                   c,
                   ExerciseType.cycling.icon,
@@ -59,7 +61,7 @@ class TrainingScreen extends StatelessWidget {
                       ? () => _startWorkout(context, ExerciseType.cycling)
                       : null,
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 _quickTile(
                   c,
                   ExerciseType.walk.icon,
@@ -69,7 +71,7 @@ class TrainingScreen extends StatelessWidget {
                       ? () => _startWorkout(context, ExerciseType.walk)
                       : null,
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 _quickTile(
                   c,
                   ExerciseType.workout.icon,
@@ -84,15 +86,15 @@ class TrainingScreen extends StatelessWidget {
 
             // Not-connected hint
             if (!band.isConnected) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               _ConnectHint(c: c, l: l),
             ],
 
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
 
             // Only recorded workouts are shown.
             _sectionLabel(c, l.t('recent')),
-            const SizedBox(height: 11),
+            SizedBox(height: 11),
             if (session.savedWorkouts.isNotEmpty ||
                 band.workoutHistory.isNotEmpty)
               ...(session.savedWorkouts.isNotEmpty
@@ -101,7 +103,7 @@ class TrainingScreen extends StatelessWidget {
                   .take(5)
                   .map(
                     (w) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
+                      padding: EdgeInsets.only(bottom: 10),
                       child: _WorkoutHistoryRow(summary: w, c: c, l: l),
                     ),
                   )
@@ -151,19 +153,19 @@ class TrainingScreen extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
-                    color: const Color(0xFF171B21),
-                    border: Border.all(color: const Color(0xFF2A313A)),
+                    color: AppTheme.surface,
+                    border: Border.all(color: AppTheme.outline),
                   ),
                   child: Icon(icon, color: color, size: 24),
                 ),
               ),
-              const SizedBox(height: 7),
+              SizedBox(height: 7),
               Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFFC6CCD6),
+                style: TextStyle(
+                  color: AppTheme.textSecondary,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -213,11 +215,11 @@ class _WorkoutHistoryRow extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(13),
+      padding: EdgeInsets.all(13),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        color: const Color(0xFF171B21),
-        border: Border.all(color: const Color(0xFF2A313A)),
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.outline),
       ),
       child: Row(
         children: [
@@ -231,20 +233,20 @@ class _WorkoutHistoryRow extends StatelessWidget {
             ),
             child: Icon(summary.type.icon, color: color, size: 22),
           ),
-          const SizedBox(width: 13),
+          SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   _typeName(summary.type, l),
-                  style: const TextStyle(
-                    color: Color(0xFFF3F5F8),
+                  style: TextStyle(
+                    color: AppTheme.text,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(meta, style: TextStyle(color: c.subtext, fontSize: 12)),
               ],
             ),
@@ -287,16 +289,16 @@ class _ConnectHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        color: const Color(0xFF171B21),
-        border: Border.all(color: const Color(0xFF2A313A)),
+        color: AppTheme.surface,
+        border: Border.all(color: AppTheme.outline),
       ),
       child: Row(
         children: [
           Icon(Icons.watch_outlined, color: c.subtext, size: 18),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Text(
               l.t('workout_connect_hint'),

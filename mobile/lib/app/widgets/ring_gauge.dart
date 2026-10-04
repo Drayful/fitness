@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../theme.dart';
+
 /// A circular progress ring with a sweep-gradient stroke + soft glow.
 /// Put any widget in [center] (big number, label, etc).
 class RingGauge extends StatelessWidget {
@@ -13,7 +15,7 @@ class RingGauge extends StatelessWidget {
     this.size = 148,
     this.strokeWidth = 15,
     this.center,
-    this.trackColor = const Color(0xFF2A313A),
+    this.trackColor,
   });
 
   final double value;
@@ -22,7 +24,8 @@ class RingGauge extends StatelessWidget {
   final double size;
   final double strokeWidth;
   final Widget? center;
-  final Color trackColor;
+  /// Defaults to the palette outline colour.
+  final Color? trackColor;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +44,7 @@ class RingGauge extends StatelessWidget {
                   ? colors
                   : [colors.first, colors.first],
               strokeWidth: strokeWidth,
-              trackColor: trackColor,
+              trackColor: trackColor ?? AppTheme.outline,
             ),
           ),
           ?center,
@@ -85,7 +88,7 @@ class _RingPainter extends CustomPainter {
       startAngle: 0,
       endAngle: sweep,
       colors: colors,
-      transform: const GradientRotation(start),
+      transform: GradientRotation(start),
     ).createShader(rect);
 
     final glow = Paint()
