@@ -97,6 +97,7 @@ class _FitnessAppState extends State<FitnessApp> with WidgetsBindingObserver {
 
   void _pushBodyProfile() {
     unawaited(_bandService.setBodyProfile(_session.bodyProfile));
+    unawaited(_bandService.setStepGoal(_session.stepGoal));
   }
 
   void _saveHistory() {

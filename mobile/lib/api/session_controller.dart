@@ -57,6 +57,7 @@ class SessionController extends ChangeNotifier {
       await prefs.remove(_tokenKey);
       await prefs.remove(_userNameKey);
       await prefs.remove(_userEmailKey);
+      stepGoal = prefs.getInt(_stepGoalKey) ?? defaultStepGoal;
       final savedToken = await _storage.read(key: _tokenKey);
       final savedName = await _storage.read(key: _userNameKey);
       final savedEmail = await _storage.read(key: _userEmailKey);
@@ -354,6 +355,26 @@ class SessionController extends ChangeNotifier {
       refreshDailyActivity(),
       refreshProfile(),
     ]);
+  }
+
+  // ── Daily step goal (TZ §20) ─────────────────────────────────────────────
+
+  static const _stepGoalKey = 'step_goal_v1';
+  static const defaultStepGoal = 10000;
+  static const minStepGoal = 1000;
+  static const maxStepGoal = 50000;
+
+  int stepGoal = defaultStepGoal;
+
+  Future<void> setStepGoal(int goal) async {
+    final clamped = goal.clamp(minStepGoal, maxStepGoal);
+    if (clamped == stepGoal) return;
+    stepGoal = clamped;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_stepGoalKey, clamped);
+    } catch (_) {}
   }
 
   // ── Body profile (sex, birth date, height, weight) ───────────────────────

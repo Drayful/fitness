@@ -19,8 +19,6 @@ import 'sleep_screen.dart';
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
-  /// Daily step target for the hero ring until goals are configurable.
-  static const stepGoal = 10000;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +57,13 @@ class DashboardScreen extends StatelessWidget {
                 _NoBandCard(band: band, l: l),
               SizedBox(height: 18),
               if (connected) ...[
-                Center(child: _StepsRing(steps: vitals?.steps, l: l)),
+                Center(
+                  child: _StepsRing(
+                    steps: vitals?.steps,
+                    goal: session.stepGoal,
+                    l: l,
+                  ),
+                ),
                 SizedBox(height: 14),
               ],
               _ActivityRow(band: band, session: session, l: l),
@@ -356,7 +360,13 @@ class _NoBandCard extends StatelessWidget {
 }
 
 class _StepsRing extends StatelessWidget {
-  const _StepsRing({required this.steps, required this.l});
+  const _StepsRing({
+    required this.steps,
+    required this.goal,
+    required this.l,
+  });
+
+  final int goal;
 
   final int? steps;
   final AppLocalizations l;
@@ -366,7 +376,7 @@ class _StepsRing extends StatelessWidget {
     final fmt = MaterialLocalizations.of(context);
     return RingGauge(
       value: (steps ?? 0).toDouble(),
-      max: DashboardScreen.stepGoal.toDouble(),
+      max: goal.toDouble(),
       colors: [AppTheme.accent, AppTheme.accentBorder],
       size: 168,
       strokeWidth: 14,
@@ -389,7 +399,7 @@ class _StepsRing extends StatelessWidget {
           ),
           Text(
             _fill(l.t('home_steps_goal'), {
-              'goal': fmt.formatDecimal(DashboardScreen.stepGoal),
+              'goal': fmt.formatDecimal(goal),
             }),
             style: TextStyle(fontSize: 11, color: AppTheme.subtext),
           ),

@@ -810,6 +810,8 @@ class V8BandService extends ChangeNotifier {
       if (!_ready || generation != _connectionGeneration) return;
       _bodyProfileSent = null; // a fresh link: make sure the band has it
       await _sendBodyProfile();
+      _stepGoalSent = null;
+      await _sendStepGoal();
       if (!_ready || generation != _connectionGeneration) return;
       try {
         await syncHistory();
@@ -1070,6 +1072,35 @@ class V8BandService extends ChangeNotifier {
       }
     }
     return best;
+  }
+
+  // ── Step goal → band (0x0B, 2208A only; the V8 SDK has no such command) ──
+  static const _cmdSetStepGoal = 0x0B;
+  int? _stepGoal;
+  int? _stepGoalSent;
+
+  Future<void> setStepGoal(int goal) async {
+    _stepGoal = goal;
+    if (goal != _stepGoalSent) await _sendStepGoal();
+  }
+
+  Future<void> _sendStepGoal() async {
+    final goal = _stepGoal;
+    if (goal == null ||
+        !_ready ||
+        !variantConfirmed ||
+        variant != BandVariant.jc2208a) {
+      return;
+    }
+    try {
+      await sendCommand(_cmdSetStepGoal, [
+        goal & 0xFF,
+        (goal >> 8) & 0xFF,
+        (goal >> 16) & 0xFF,
+        (goal >> 24) & 0xFF,
+      ]);
+      _stepGoalSent = goal;
+    } catch (_) {}
   }
 
   // ── Body profile → band (0x02) ──

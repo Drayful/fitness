@@ -74,6 +74,55 @@ class ProfileScreen extends StatelessWidget {
         .toUpperCase();
   }
 
+  /// TZ §20: the user sets the daily step goal (500-step increments).
+  Future<void> _chooseStepGoal(
+    BuildContext context,
+    SessionController session,
+  ) async {
+    final l = AppLocalizations.of(context);
+    final fmt = MaterialLocalizations.of(context);
+    var goal = session.stepGoal.toDouble();
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          backgroundColor: AppTheme.surface,
+          title: Text(l.t('step_goal')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                fmt.formatDecimal(goal.round()),
+                style: AppTheme.numeric(fontSize: 32, color: AppTheme.accent),
+              ),
+              Slider(
+                value: goal,
+                min: SessionController.minStepGoal.toDouble(),
+                max: SessionController.maxStepGoal.toDouble(),
+                divisions:
+                    (SessionController.maxStepGoal -
+                        SessionController.minStepGoal) ~/
+                    500,
+                onChanged: (v) => setState(() => goal = v),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: Text(MaterialLocalizations.of(ctx).cancelButtonLabel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(goal.round()),
+              child: Text(l.t('save')),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) await session.setStepGoal(picked);
+  }
+
   static String _themeLabel(AppLocalizations l, ThemeMode mode) =>
       switch (mode) {
         ThemeMode.system => l.t('theme_system'),
@@ -433,6 +482,18 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       builder: (_) => _BodyProfileSheet(session: session),
                     ),
+                  ),
+                  _divider(),
+                  _settingRow(
+                    c,
+                    Icons.flag_outlined,
+                    c.accent,
+                    l.t('step_goal'),
+                    l.t('step_goal_sub'),
+                    trailingText: MaterialLocalizations.of(
+                      context,
+                    ).formatDecimal(session.stepGoal),
+                    onTap: () => _chooseStepGoal(context, session),
                   ),
                   _divider(),
                   _settingRow(

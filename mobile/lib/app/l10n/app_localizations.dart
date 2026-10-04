@@ -92,6 +92,8 @@ class AppLocalizations {
       'nav_trends': 'Trends',
       'nav_training': 'Training',
       'nav_profile': 'Profile',
+      'step_goal': 'Daily step goal',
+      'step_goal_sub': 'Used on home; also set on the 2208A watch',
       'workout_zones': 'HEART-RATE ZONES',
       'workout_zones_no_age':
           'Zones use a max heart rate of 190. Add your date of birth in Profile → Body data for personal zones.',
@@ -372,6 +374,8 @@ class AppLocalizations {
       'nav_trends': 'Тренды',
       'nav_training': 'Тренировки',
       'nav_profile': 'Профиль',
+      'step_goal': 'Цель шагов',
+      'step_goal_sub': 'Для главного экрана; на часах 2208A тоже',
       'workout_zones': 'ПУЛЬСОВЫЕ ЗОНЫ',
       'workout_zones_no_age':
           'Зоны считаются от максимального пульса 190. Укажите дату рождения в Профиль → Данные тела — зоны станут персональными.',
@@ -649,6 +653,8 @@ class AppLocalizations {
       'nav_trends': 'Тренд',
       'nav_training': 'Жаттығу',
       'nav_profile': 'Профиль',
+      'step_goal': 'Қадам мақсаты',
+      'step_goal_sub': 'Басты экран үшін; 2208A сағатында да',
       'workout_zones': 'ПУЛЬС АЙМАҚТАРЫ',
       'workout_zones_no_age':
           'Аймақтар максималды пульс 190 бойынша есептеледі. Профиль → Дене деректері бөлімінде туған күніңізді көрсетіңіз.',
