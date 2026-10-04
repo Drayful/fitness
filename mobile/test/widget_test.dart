@@ -30,7 +30,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.bolt_outlined));
     await tester.pumpAndSettle();
     expect(
-      find.text('В этой сессии пока нет записанных тренировок.'),
+      find.text('Пока нет сохранённых тренировок.'),
       findsOneWidget,
     );
     expect(find.textContaining('14–16'), findsNothing);

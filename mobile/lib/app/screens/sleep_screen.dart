@@ -307,7 +307,7 @@ class _NightHeader extends StatelessWidget {
                 TextSpan(
                   children: [
                     TextSpan(
-                      text: '${summary!.score}',
+                      text: '${summary.score}',
                       style: AppTheme.numeric(
                         fontSize: 20,
                         color: AppTheme.good,
